@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <ES_CAN.h>
+extern "C" void CAN1_RX0_IRQHandler(void);
+
+const uint32_t TX_Interval = 1000;
 
 //Pin definitions
 
@@ -46,6 +50,13 @@ void setOutMuxBit(const uint8_t bitIdx, const bool value) {
       digitalWrite(REN_PIN,LOW);
 }
 
+uint8_t RX_data[8] = {0,0,0,0,0,0,0,0};
+void CAN_ISR() {
+  uint32_t ID;
+  CAN_RX(ID,RX_data);
+  digitalToggle(LED_BUILTIN);
+}
+
 void setup() {
   // put your setup code here, to run once:
 
@@ -74,21 +85,59 @@ void setup() {
   setOutMuxBit(DEN_BIT, HIGH);  //Enable display power supply
 
   //Initialise UART
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("Hello World");
-  
+
+  //Initialise CAN
+  uint32_t status = CAN_Init();
+  Serial.print(status);
+
+  status = setCANFilter();
+  Serial.print(status);
+
+  CAN_RegisterISR(CAN_ISR);
+
+  status = CAN_Start();
+  Serial.print(status);
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  static uint32_t nextTX = millis();
+  static uint8_t dataByte = 0;
+  uint8_t TX_data[8];
 
-  //Update display
-  u8g2.clearBuffer();         // clear the internal memory
-  u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
-  u8g2.drawStr(2,10,"Helllo World!");  // write something to the internal memory
-  u8g2.sendBuffer();          // transfer internal memory to the display
+  if (CAN_CheckRXLevel()){
+    uint32_t RX_ID;
+    CAN_RX(RX_ID, RX_data);
 
-  //Toggle LED
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    Serial.print(RX_ID);
+    for (int i=0; i<8; i++)
+      Serial.print(RX_data[i]);
+    Serial.println();
 
+  }
+
+  if (millis() > nextTX) {
+    nextTX += TX_Interval;
+
+    //Update display
+    u8g2.clearBuffer();         // clear the internal memory
+    u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
+    u8g2.drawStr(2,10,"Helllo World!");  // write something to the internal memory
+    u8g2.setCursor(2,20);
+    
+    for (int i=0; i<8; i++)
+      u8g2.print(RX_data[i],HEX);
+    u8g2.sendBuffer();          // transfer internal memory to the display
+
+    for (int i=0; i<8; i++)
+      TX_data[i] = dataByte++;
+
+    //CAN_TX(0x123,TX_data);
+
+    //Toggle LED
+    //digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  }
 }
