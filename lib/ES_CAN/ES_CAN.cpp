@@ -7,11 +7,17 @@
 //#define CAN_MODE CAN_MODE_LOOPBACK
 #define CAN_MODE CAN_MODE_NORMAL
 
-//Overwrite the weak default IRQ Handler
+//Overwrite the weak default IRQ Handlers and callabcks
 extern "C" void CAN1_RX0_IRQHandler(void);
+extern "C" void CAN1_TX_IRQHandler(void);
+extern "C" void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef * hcan);
+extern "C" void HAL_CAN_TxMailbox0CompleteCallback(CAN_HandleTypeDef * hcan);
+//extern "C" void HAL_CAN_TxMailbox1CompleteCallback(CAN_HandleTypeDef * hcan);
+//extern "C" void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef * hcan);
 
-//Pointer to user ISR
-void (*CAN_ISR)() = NULL;
+//Pointer to user ISRS
+void (*CAN_RX_ISR)() = NULL;
+void (*CAN_TX_ISR)() = NULL;
 
 //CAN handle struct with initialisation parameters
 //Timing from http://www.bittiming.can-wiki.info/ with bit rate = 125kHz and clock frequency = 80MHz
@@ -33,6 +39,7 @@ CAN_HandleTypeDef CAN_Handle = {
     HAL_CAN_STATE_RESET,  //State
     HAL_CAN_ERROR_NONE    //Error Code
 };
+
 
 //Initialise CAN dependencies: GPIO and clock
 void HAL_CAN_MspInit(CAN_HandleTypeDef* CAN_Handle) {
@@ -63,9 +70,11 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* CAN_Handle) {
   HAL_GPIO_Init(GPIOA, &GPIO_InitCAN_RX); //Configure CAN pin
 }
 
+
 uint32_t CAN_Init() {
   return (uint32_t) HAL_CAN_Init(&CAN_Handle);
 }
+
 
 uint32_t setCANFilter(uint32_t filterID, uint32_t maskID, uint32_t filterBank) {
 
@@ -86,9 +95,11 @@ uint32_t setCANFilter(uint32_t filterID, uint32_t maskID, uint32_t filterBank) {
   return (uint32_t) HAL_CAN_ConfigFilter(&CAN_Handle, &filterInfo);
 }
 
+
 uint32_t CAN_Start() {
   return (uint32_t) HAL_CAN_Start(&CAN_Handle);
 }
+
 
 uint32_t CAN_TX(uint32_t ID, uint8_t data[8]) {
 
@@ -102,15 +113,24 @@ uint32_t CAN_TX(uint32_t ID, uint8_t data[8]) {
     DISABLE                     //No time triggered mode
   };
 
+  //Wait for free mailbox
+  while (!HAL_CAN_GetTxMailboxesFreeLevel(&CAN_Handle));
+
+  //Start the transmission
   return (uint32_t) HAL_CAN_AddTxMessage(&CAN_Handle, &txHeader, data, NULL);
 }
+
 
 uint32_t CAN_CheckRXLevel() {
   return HAL_CAN_GetRxFifoFillLevel(&CAN_Handle, 0);
 }
 
+
 uint32_t CAN_RX(uint32_t &ID, uint8_t data[8]) {
   CAN_RxHeaderTypeDef rxHeader;
+
+  //Wait for message in FIFO
+  while (!HAL_CAN_GetRxFifoFillLevel(&CAN_Handle, 0));
   
   //Get the message from the FIFO
   uint32_t result = (uint32_t) HAL_CAN_GetRxMessage(&CAN_Handle, 0, &rxHeader, data);
@@ -121,9 +141,10 @@ uint32_t CAN_RX(uint32_t &ID, uint8_t data[8]) {
   return result;
 }
 
-uint32_t CAN_RegisterISR(void(& callback)()) {
+
+uint32_t CAN_RegisterRX_ISR(void(& callback)()) {
   //Store pointer to user ISR
-  CAN_ISR = &callback;
+  CAN_RX_ISR = &callback;
 
   //Enable message received interrupt in HAL
   uint32_t status = (uint32_t) HAL_CAN_ActivateNotification (&CAN_Handle, CAN_IT_RX_FIFO0_MSG_PENDING);
@@ -134,15 +155,63 @@ uint32_t CAN_RegisterISR(void(& callback)()) {
   return status;
 }
 
+
+uint32_t CAN_RegisterTX_ISR(void(& callback)()) {
+  //Store pointer to user ISR
+  CAN_TX_ISR = &callback;
+
+  //Enable message received interrupt in HAL
+  uint32_t status = (uint32_t) HAL_CAN_ActivateNotification (&CAN_Handle, CAN_IT_TX_MAILBOX_EMPTY);
+
+  //Switch on the interrupt
+  HAL_NVIC_EnableIRQ (CAN1_TX_IRQn);
+
+  return status;
+}
+
+
 void HAL_CAN_RxFifo0MsgPendingCallback (CAN_HandleTypeDef * hcan){
 
   //Call the user ISR if it has been registered
-  if (CAN_ISR)
-    CAN_ISR();
+  if (CAN_RX_ISR)
+    CAN_RX_ISR();
 }
+
+
+void HAL_CAN_TxMailbox0CompleteCallback (CAN_HandleTypeDef * hcan){
+
+  //Call the user ISR if it has been registered
+  if (CAN_TX_ISR)
+    CAN_TX_ISR();
+}
+
+
+void HAL_CAN_TxMailbox1CompleteCallback (CAN_HandleTypeDef * hcan){
+
+  //Call the user ISR if it has been registered
+  if (CAN_TX_ISR)
+    CAN_TX_ISR();
+}
+
+
+void HAL_CAN_TxMailbox2CompleteCallback (CAN_HandleTypeDef * hcan){
+
+  //Call the user ISR if it has been registered
+  if (CAN_TX_ISR)
+    CAN_TX_ISR();
+}
+
 
 //This is the base ISR at the interrupt vector
 void CAN1_RX0_IRQHandler(void){
+
+  //Use the HAL interrupt handler
+  HAL_CAN_IRQHandler(&CAN_Handle);
+}
+
+
+//This is the base ISR at the interrupt vector
+void CAN1_TX_IRQHandler(void){
 
   //Use the HAL interrupt handler
   HAL_CAN_IRQHandler(&CAN_Handle);
