@@ -3,17 +3,9 @@
 #include <stm32l4xx_hal_gpio.h>
 #include <stm32l4xx_hal_cortex.h>
 
-//Should the CAN hardware be in loopback mode?
-//#define CAN_MODE CAN_MODE_LOOPBACK
-#define CAN_MODE CAN_MODE_NORMAL
-
 //Overwrite the weak default IRQ Handlers and callabcks
 extern "C" void CAN1_RX0_IRQHandler(void);
 extern "C" void CAN1_TX_IRQHandler(void);
-extern "C" void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef * hcan);
-extern "C" void HAL_CAN_TxMailbox0CompleteCallback(CAN_HandleTypeDef * hcan);
-//extern "C" void HAL_CAN_TxMailbox1CompleteCallback(CAN_HandleTypeDef * hcan);
-//extern "C" void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef * hcan);
 
 //Pointer to user ISRS
 void (*CAN_RX_ISR)() = NULL;
@@ -25,7 +17,7 @@ CAN_HandleTypeDef CAN_Handle = {
     CAN1,
     {
         40,           //Prescaler
-        CAN_MODE,     //Normal/loopback/silent mode
+        CAN_MODE_NORMAL,     //Normal/loopback/silent mode
         CAN_SJW_2TQ,  //SyncJumpWidth
         CAN_BS1_13TQ, //TimeSeg1
         CAN_BS2_2TQ,  //TimeSeg2
@@ -71,7 +63,9 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* CAN_Handle) {
 }
 
 
-uint32_t CAN_Init() {
+uint32_t CAN_Init(bool loopback=false) {
+  if (loopback)
+    CAN_Handle.Init.Mode = CAN_MODE_LOOPBACK;
   return (uint32_t) HAL_CAN_Init(&CAN_Handle);
 }
 
@@ -150,6 +144,7 @@ uint32_t CAN_RegisterRX_ISR(void(& callback)()) {
   uint32_t status = (uint32_t) HAL_CAN_ActivateNotification (&CAN_Handle, CAN_IT_RX_FIFO0_MSG_PENDING);
 
   //Switch on the interrupt
+  HAL_NVIC_SetPriority (CAN1_RX0_IRQn, 6, 0);
   HAL_NVIC_EnableIRQ (CAN1_RX0_IRQn);
 
   return status;
@@ -164,6 +159,7 @@ uint32_t CAN_RegisterTX_ISR(void(& callback)()) {
   uint32_t status = (uint32_t) HAL_CAN_ActivateNotification (&CAN_Handle, CAN_IT_TX_MAILBOX_EMPTY);
 
   //Switch on the interrupt
+  HAL_NVIC_SetPriority (CAN1_TX_IRQn, 6, 0);
   HAL_NVIC_EnableIRQ (CAN1_TX_IRQn);
 
   return status;

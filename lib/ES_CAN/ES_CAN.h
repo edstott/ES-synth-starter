@@ -1,5 +1,5 @@
 //Initialise the CAN module
-uint32_t CAN_Init();
+uint32_t CAN_Init(bool loopback=false);
 
 //Enable the CAN module
 uint32_t CAN_Start();
