@@ -1,34 +1,16 @@
-#pragma once
-
-#include <Arduino.h>
-#include <U8g2lib.h>
-
-#include "button_matrix.hpp"
+#include "display.hpp"
 
 namespace Display {
 
-enum Address {
-    RESET = 4,
-    ENABLE = 3,
-
-    HKOW = 5,
-    HKOE = 6,
-};
-
-static U8G2_SSD1305_128X32_NONAME_F_HW_I2C context(U8G2_R0);
-
-static bool initialized = false;
-
-void reset() {
-    ButtonMatrix::write(Address::RESET, LOW);
-    delayMicroseconds(2);
-    ButtonMatrix::write(Address::RESET, HIGH);
+void clear() {
+    context.clearBuffer();
 }
 
 void initialize() {
+    static bool initialized = false;
     if(initialized)
         return;
-    
+
     ButtonMatrix::initialize();
 
     reset();
@@ -44,17 +26,26 @@ void initialize() {
     initialized = true;
 }
 
-void clear() {
-    context.clearBuffer();
-}
-
-void write(const uint8_t &column, const uint8_t &row, const char *text) {
-    clear();
-    context.drawStr(2, 10, text);
+void reset() {
+    ButtonMatrix::write(Address::RESET, LOW);
+    delayMicroseconds(2);
+    ButtonMatrix::write(Address::RESET, HIGH);
 }
 
 void update() {
     context.sendBuffer();
 }
 
-};
+void write(const uint8_t &column, const uint8_t &row, const char *text) {
+    context.drawStr(2, 10, text);
+}
+
+void writeHexadecimal(const uint8_t &column,
+        const uint8_t &row,
+        const uint8_t &value) {
+
+    context.setCursor(column, row);
+    context.print(value, HEX);
+}
+
+}; // Namespace Display
