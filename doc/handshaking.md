@@ -1,6 +1,6 @@
 # Handshaking and auto-detection
   Stacksynth modules are designed to be joined together to make a larger keyboard. Messages are exchanged between modules using a CAN bus.
-  Typically, one module will act as a receiver and synthesise the notes that are played any module. The other modules transmit notes.
+  Typically, one module will have a receiver role and synthesise the notes that are played any module. The other modules transmit notes.
   Each module needs to be set up to generate notes from a different octave.
   
   The role and octave can be defined by compiling different versions of the code for each module.
@@ -70,7 +70,7 @@
   
   Four or more modules is more complex because there are multiple centre modules. You can do something like this:
   1. Get a unique ID for the module.
-  You can use the microcontroller's built-in, 96-bit ID, which is accessed through the HAL functions `HAL_GetUIDw0()`, `HAL_GetUIDw1()` and `HAL_GetUIDw2()`.
+  You can use the microcontroller's built-in, 96-bit ID, which is accessed through the HAL functions `HAL_GetUIDw0()`, `HAL_GetUIDw1()` and `HAL_GetUIDw2()`. It consists of a few different fields, some binary, some ASCII. You may want to generate a hash to get a smaller data type.
   2. At startup, set both handshake outputs (west and east) high (on)
   3. Wait long enough for all the other modules to start and switch on their handshake outputs
   4. Read the handshake inputs. Is the west input high (off)? If so:
@@ -78,13 +78,14 @@
      - If the east input is also high (off), it is the only module, so end handshaking here
      - Broadcast a handshaking message on the CAN bus that starts with a predefined symbol for handshaking and contains this module's ID and position (0)
      - Set the east handshake signal low (off)
-  5. If the module is not the most westerly, it must wait for handshaking messages on the CAN bus:
+  5. If the module is not the most westerly, it must wait for handshaking messages on the CAN bus and for the west handshake input to change:
      - Record the ID and position of each module that sends a message
      - Has the west handshake input has changed to high (off)? If so:
        - This module's position is one greater than the position of the previous message
-       - Broadcast a handshaking message and set the east handshake signal low (off)
+       - Broadcast a new handshaking message and set the east handshake output low (off)
        - If this module is the most easterly, send another CAN message to indicate handshaking complete
+       - 
   Once handshaking is complete, each module will contain a data structure listing the ID and position of every module.
-  This can be used to set up the role and octave numebr of each module.
+  This can be used to set up the role and octave number of each module.
   
   
