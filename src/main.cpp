@@ -1,50 +1,38 @@
 #include <Arduino.h>
 
-#include "button_matrix/button_matrix.hpp"
-#include "display/display.hpp"
-#include "speaker/speaker.hpp"
-
-/*
-  //Joystick analogue in
-  const int JOYY_PIN = A0;
-  const int JOYX_PIN = A1;
-
-*/
+#include "matrix.hpp"
+#include "display.hpp"
+#include "speaker.hpp"
 
 void setup() {
-    /*
 
-    //Set pin directions
-    pinMode(OUTL_PIN, OUTPUT);
-    pinMode(OUTR_PIN, OUTPUT);
-    pinMode(LED_BUILTIN, OUTPUT);
-
-    pinMode(JOYX_PIN, INPUT);
-    pinMode(JOYY_PIN, INPUT);
-
-    */
-    ButtonMatrix::initialize();
+    Speaker::initialize();
+    Matrix::initialize();
     Display::initialize();
 
     //Initialise UART
     Serial.begin(9600);
-    Serial.println("Hello World");
+    Serial.println("device online");
 }
 
 void loop() {
-    Speaker::state.volume = 128;
-    Speaker::state.pitch = 256;
-    Speaker::state.playing = true;
-
     static uint32_t next = millis();
-    static uint32_t count = 0;
 
     if (millis() > next) {
         next += 100;
 
-        const uint8_t keys = ButtonMatrix::readColumns();
+        Matrix::update();
+
+        char buffer[12] = {'\0'};
+        for(int row = 0; row < 3; row += 1) {
+            for(int column = 0; column < 4; column += 1) {
+                const char value = (Matrix::values[row] >> column) & 0x1 ? '@' : '.';
+                strncat(buffer, &value, 1);
+            }
+        }
+
         Display::clear();
-        Display::writeHexadecimal(2, 20, keys);
+        Display::write(2, 10, buffer);
         Display::update();
     }
 }
