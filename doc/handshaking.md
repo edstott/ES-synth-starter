@@ -5,7 +5,7 @@
   
   The role and octave can be defined by compiling different versions of the code for each module.
   You can also allow them to be set with the user interface.
-  However, a neater solution is to implement a handshaking system so that modules will automatically set up the roles and octaves on startup.
+  However, a neater solution is to implement a handshaking system so that modules will automatically set up their roles and octaves on startup, depending on their position in the row of modules.
   
  ## Handshake signals
   The inter-module connectors include a pair of east/west handshake signals in addition to the CAN bus.
@@ -56,7 +56,7 @@
   A high input causes the FET to turn on, which, when the row is selected (driven low), pulls the column input low and is read as 0.
   The resistor ensures that the FET is off if nothing is connected to the input - this is read as 1.
   
-  You read the handshake inuts just like a physical switch and the code example above already includes both handshake inputs in `keyArray`.
+  You read the handshake inputs just like a physical switch and the code example above already includes both handshake inputs in `keyArray`.
   The positions of the inputs in the matrix are:
   | HS Input | Row  | Column |
   | -------- | ----- | -------|
@@ -84,7 +84,7 @@
        - This module's position is one greater than the position of the previous message
        - Broadcast a new handshaking message and set the east handshake output low (off)
        - If this module is the most easterly, send another CAN message to indicate handshaking complete
-       - 
+
   Once handshaking is complete, each module will contain a data structure listing the ID and position of every module.
   This can be used to set up the role and octave number of each module.
   
