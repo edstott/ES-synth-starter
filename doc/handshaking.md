@@ -68,7 +68,7 @@
   The modules at each end will detect just one input from adjacent modules, while the centre module will detect two.
   You may need to broadcast a CAN message from the centre module to announce that it is a three module keyboard, not two.
   
-  Four or more modules is more complex because there are multiple centre modules. You can do something like this:
+  Four or more modules is more complex because there are multiple centre modules. On startup, you can do something like this:
   1. Get a unique ID for the module.
   You can use the microcontroller's built-in, 96-bit ID, which is accessed through the HAL functions `HAL_GetUIDw0()`, `HAL_GetUIDw1()` and `HAL_GetUIDw2()`. It consists of a few different fields, some binary, some ASCII. You may want to generate a hash to get a smaller data type.
   2. At startup, set both handshake outputs (west and east) high (on)
@@ -88,4 +88,4 @@
   Once handshaking is complete, each module will contain a data structure listing the ID and position of every module.
   This can be used to set up the role and octave number of each module.
   
-  
+  You may wish to consider live plugging and unplugging of modules as well as detecting a static configuration. One way you could do this is to hold all the handshake outputs high during normal operation. If any module detects a neighbour connecting or disconnecting, it can broadcast a CAN message that triggers a new auto-detection sequence.
