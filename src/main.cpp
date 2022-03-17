@@ -1,38 +1,56 @@
 #include <Arduino.h>
 
-#include "matrix.hpp"
-#include "display.hpp"
-#include "speaker.hpp"
+#include "matrix.h"
+#include "display.h"
+#include "speaker.h"
 
 void setup() {
+    matrixInitialize();
+    displayInitialize();
+    speakerInitialize();
+}
 
-    Speaker::initialize();
-    Matrix::initialize();
-    Display::initialize();
-
-    //Initialise UART
-    Serial.begin(9600);
-    Serial.println("device online");
+int8_t keyNote(const uint8_t key) {
+    const uint8_t row = key >> 4;
+    const uint8_t column = key & 0xF;
+    const uint8_t index = row * 8 + column;
+    return index - 9;
 }
 
 void loop() {
     static uint32_t next = millis();
+    static uint32_t count = 0;
 
-    if (millis() > next) {
+    static const uint8_t keyCount = 12;
+    static const uint8_t pianoKeys[12] = {
+        KEY_C,
+        KEY_CS,
+        KEY_D,
+        KEY_DS,
+        KEY_E,
+        KEY_F,
+        KEY_FS,
+        KEY_G,
+        KEY_GS,
+        KEY_A,
+        KEY_AS,
+        KEY_B
+    };
+
+    uint8_t scanKeys[4];
+    if(millis() > next) {
         next += 100;
 
-        Matrix::update();
+        matrixRead(scanKeys);
+        speakerStopAll();
 
-        char buffer[12] = {'\0'};
-        for(int row = 0; row < 3; row += 1) {
-            for(int column = 0; column < 4; column += 1) {
-                const char value = (Matrix::values[row] >> column) & 0x1 ? '@' : '.';
-                strncat(buffer, &value, 1);
+        for(uint8_t index = 0; index < keyCount; index += 1) {
+            const uint8_t key = pianoKeys[index];
+
+            if(matrixKeyPressed(scanKeys, key)) {
+                const int8_t note = keyNote(key);
+                speakerPlayNote(note, 4);
             }
         }
-
-        Display::clear();
-        Display::write(2, 10, buffer);
-        Display::update();
     }
 }
