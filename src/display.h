@@ -20,13 +20,13 @@
 
 // ----------------------------------------------------------------------------
 
-static U8G2_SSD1305_128X32_NONAME_F_HW_I2C context(U8G2_R0);
+static U8G2_SSD1305_128X32_NONAME_F_HW_I2C _context(U8G2_R0);
 
 // ----------------------------------------------------------------------------
 
 
 void displayClear() {
-    context.clearBuffer();
+    _context.clearBuffer();
 }
 
 void displayInitialize() {
@@ -34,20 +34,20 @@ void displayInitialize() {
     delayMicroseconds(2);
     matrixWrite(_DISPLAY_ADDRESS_RESET, HIGH);
 
-    context.begin();
+    _context.begin();
     matrixWrite(_DISPLAY_ADDRESS_ENABLE, HIGH);
-    context.setFont(u8g2_font_pxplusibmvga9_mf);
+    _context.setFont(u8g2_font_pxplusibmvga9_mf);
 
     delayMicroseconds(2);
 
-    context.clearBuffer();
-    context.sendBuffer();
+    _context.clearBuffer();
+    _context.sendBuffer();
 
     Serial.println("display initialized");
 }
 
 void displayUpdate() {
-    context.sendBuffer();
+    _context.sendBuffer();
 }
 
 void displayWriteRadixXY(const uint8_t x, 
@@ -55,12 +55,12 @@ void displayWriteRadixXY(const uint8_t x,
         const uint8_t value,
         const uint8_t radix) {
     
-    context.setCursor(x, y);
-    context.print(value, radix);
+    _context.setCursor(x, y);
+    _context.print(value, radix);
 }
 
 void displayWriteXY(const uint8_t x, const uint8_t y, const char *text) {
-    context.drawStr(x, y, text);
+    _context.drawStr(x, y, text);
 }
 
 #endif // __DISPLAY_H_
