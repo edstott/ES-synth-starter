@@ -209,9 +209,14 @@ Returns
 amplitude:
     the amplitude of the scaled signal
 */
-static uint8_t scaleVolume(const uint8_t value, const uint8_t limit) {
+static uint8_t scaleVolume(const uint8_t value, const uint8_t limit, const uint8_t count) {
+    uint8_t limit_poly;
+    if (count > 1) {
+        limit_poly = limit + (count*12);
+        if (limit_poly > 127) limit_poly = 127;
+    }else limit_poly = limit;
     const int16_t delta = value - 127;
-    const int16_t adjust = (delta * limit) >> 8;
+    const int16_t adjust = (delta * limit_poly) >> 8;
     return 127 + adjust;
 }
 
@@ -242,7 +247,7 @@ void updateRoutine() {
     }
 
     const uint8_t mixedChannels = mixChannels(values, _channelCount);
-    const uint8_t amplitude = scaleVolume(mixedChannels, _volume);
+    const uint8_t amplitude = scaleVolume(mixedChannels, _volume, _channelCount);
 
     analogWrite(_SPEAKER_PIN_RIGHT, amplitude);
 }
