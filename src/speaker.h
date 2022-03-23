@@ -6,8 +6,8 @@
 
 // ----------------------------------------------------------------------------
 
-#define _SPEAKER_CHANNEL_LIMIT 12
-#define _SPEAKER_UPDATE_PERIOD 22000
+#define _SPEAKER_CHANNEL_COUNT    12
+#define _SPEAKER_UPDATE_FREQUENCY 22000
 
 // ----------------------------------------------------------------------------
 
@@ -42,12 +42,31 @@
 
 // ----------------------------------------------------------------------------
 
+struct Note {
+
+    int8_t value;
+
+    uint8_t octave;
+
+};
+
+Note createNote(const int8_t value, const uint8_t octave) {
+    Note result;
+    result.value = value;
+    result.octave = octave;
+    return result;
+}
+
+// ----------------------------------------------------------------------------
+
 static uint8_t volume = 0;
 
 static uint8_t waveform = WAVEFORM_SAWTOOTH;
 
-static uint8_t channelCount = 0;
-static int16_t pitches[_SPEAKER_CHANNEL_LIMIT] = {-1};
+volatile static uint8_t channelCount = 0;
+volatile static int16_t pitches[_SPEAKER_CHANNEL_COUNT] = {-1};
+
+// volatile static int16_t pitch = -1;
 
 // ----------------------------------------------------------------------------
 
@@ -70,11 +89,11 @@ static uint8_t generateTriangle(const int16_t pitch, const uint32_t time) {
     return (phase > (period / 2)) ? 512 - result : result;
 }
 
-static int16_t notePitch(const uint8_t note, const uint8_t octave) {
+static int16_t notePitch(const Note note) {
     uint32_t result = 440;
 
-    const int8_t octaveDelta = octave - 4;
-    int16_t steps = note + (octaveDelta * 11);
+    const int8_t octaveDelta = note.octave - 4;
+    int16_t steps = note.value + (octaveDelta * 11);
 
     const uint8_t positive = steps > 0;
     steps = (steps > 0) ? steps : -steps;
@@ -89,46 +108,52 @@ static int16_t notePitch(const uint8_t note, const uint8_t octave) {
     return result;
 }
 
-static uint8_t mix(const uint8_t *pitches, const uint8_t channelCount) {
+static uint8_t mix(const uint8_t *pitches, const uint8_t count) {
     uint16_t result = 0;
-    for(uint8_t index = 0; index < channelCount; index += 1)
+    for(uint8_t index = 0; index < count; index += 1)
         result += pitches[index];
-    return result / channelCount;
+    return result / count;
 }
 
-static uint8_t scaleVolume(const uint8_t value, const uint8_t volume) {
+static uint8_t scaleVolume(const uint8_t value, const uint8_t limit) {
     const int16_t delta = value - 127;
-    const int16_t adjust = (delta * volume) >> 8;
+    const int16_t adjust = (delta * limit) >> 8;
     return 127 + adjust;
 }
 
 void updateRoutine() {
     static uint32_t microsecondTime = 0;
-    microsecondTime += _SPEAKER_UPDATE_PERIOD;
+    microsecondTime += 1e6 / _SPEAKER_UPDATE_FREQUENCY;
 
-    uint8_t channels[channelCount] = {0};
-    uint8_t channelIndex = 0;
-    for(uint8_t pitchIndex = 0;
-            pitchIndex < _SPEAKER_CHANNEL_LIMIT;
+    if(channelCount == 0) {
+        microsecondTime = 0;
+        return;
+    }
+
+    uint8_t values[channelCount] = {0};
+    uint8_t valueIndex = 0;
+    for(uint8_t pitchIndex = 0; 
+            pitchIndex < _SPEAKER_CHANNEL_COUNT; 
             pitchIndex += 1) {
+        
+        if(valueIndex == channelCount)
+            break;
 
-        if(pitches[pitchIndex] == -1)
+        const int16_t pitch = pitches[pitchIndex];
+        if(pitch == -1)
             continue;
-
+        
         uint8_t value = 0;
-        const uint8_t pitch = pitches[pitchIndex];
         if(waveform == WAVEFORM_SAWTOOTH)
             value = generateSawtooth(pitch, microsecondTime);
         else if(waveform == WAVEFORM_SQUARE)
             value = generateSquare(pitch, microsecondTime);
         else if(waveform == WAVEFORM_TRIANGLE)
             value = generateTriangle(pitch, microsecondTime);
-
-        channels[channelIndex] = value;
-        channelIndex += 1;
+        values[valueIndex] = value;
     }
 
-    const uint8_t mixedChannels = mix(channels, channelCount);
+    const uint8_t mixedChannels = mix(values, channelCount);
     const uint8_t amplitude = scaleVolume(mixedChannels, volume);
     analogWrite(_SPEAKER_PIN_RIGHT, amplitude);
 }
@@ -136,13 +161,20 @@ void updateRoutine() {
 // ----------------------------------------------------------------------------
 
 void speakerInitialize() {
+    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_COUNT; index += 1)
+        pitches[index] = -1;
+    channelCount = 0;
+
     pinMode(_SPEAKER_PIN_LEFT, OUTPUT);
     pinMode(_SPEAKER_PIN_RIGHT, OUTPUT);
+
+    analogWrite(_SPEAKER_PIN_LEFT, 128);
+    analogWrite(_SPEAKER_PIN_RIGHT, 128);
 
     TIM_TypeDef *handle = TIM1;
     HardwareTimer *timer = new HardwareTimer(handle);
 
-    timer->setOverflow(_SPEAKER_UPDATE_PERIOD, HERTZ_FORMAT);
+    timer->setOverflow(_SPEAKER_UPDATE_FREQUENCY, HERTZ_FORMAT);
     timer->attachInterrupt(updateRoutine);
     timer->resume();
 }
@@ -152,54 +184,49 @@ void speakerSetVolume(const uint8_t volume_) {
 }
 
 void speakerSetWaveform(const uint8_t waveform_) {
-    if(waveform != WAVEFORM_SAWTOOTH
-            && waveform != WAVEFORM_SQUARE
-            && waveform != WAVEFORM_TRIANGLE)
+    if(waveform_ != WAVEFORM_SAWTOOTH
+            && waveform_ != WAVEFORM_SQUARE
+            && waveform_ != WAVEFORM_TRIANGLE)
         return;
 
     waveform = waveform_;
 }
 
-uint8_t speakerPlayNote(const int8_t note, const uint8_t octave) {
-
-    const int16_t pitch = notePitch(note, octave);
-
-    uint8_t found = 0;
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_LIMIT; index += 1) {
-
-        // If there's an empty pitch slot and one hasn't been found yet, fill
-        // that one
-        if(pitches[index] == -1 && !found) {
-            pitches[index] = pitch;
-            found = 1;
-        }
-
-        // Otherwise if the pitch is encountered (possibly for the 2nd time),
-        // clear *that* slot
-        else if(pitches[index] == pitch) {
-            if(found)
-                pitches[index] = -1;
-            else
-                found = 1;
-        }
+uint8_t speakerPlayNote(const Note note) {
+    uint8_t index = 0;
+    for(index = 0; index < _SPEAKER_CHANNEL_COUNT; index += 1) {
+        if(pitches[index] == -1)
+            break;
     }
 
-    channelCount += found;
-    return found;
+    if(pitches[index] != -1)
+        return false;
+    
+    pitches[index] = notePitch(note);
+    channelCount += 1;
+    return true;
 }
 
-void speakerStopNote(const int8_t note, const uint8_t octave) {
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_LIMIT; index += 1) {
-        if(pitches[index] == note) {
-            pitches[index] = -1;
-            channelCount -= 1;
-            return;
+uint8_t speakerPlayNotes(const Note *notes, const uint8_t count) {
+    uint8_t success = 1;
+    for(uint8_t index = 0; index < count; index += 1)
+        success &= speakerPlayNote(notes[index]);
+    return success;
+}
+
+uint8_t speakerSetNotes(const Note *notes, const uint8_t count) {
+    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_COUNT; index += 1) {
+        if(index < count) {
+            const int16_t pitch = notePitch(notes[index]);
+            pitches[index] = pitch;
         }
+        else
+            pitches[index] = 0;
     }
 }
 
 void speakerStopAll() {
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_LIMIT; index += 1)
+    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_COUNT; index += 1)
         pitches[index] = -1;
     channelCount = 0;
 }

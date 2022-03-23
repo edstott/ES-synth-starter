@@ -5,9 +5,15 @@
 #include "speaker.h"
 
 void setup() {
+    Serial.begin(9600);
+    Serial.println("device started");
+
     matrixInitialize();
     displayInitialize();
     speakerInitialize();
+
+    speakerSetVolume(64);
+    speakerSetWaveform(WAVEFORM_SAWTOOTH);
 }
 
 int8_t keyNote(const uint8_t key) {
@@ -42,15 +48,25 @@ void loop() {
         next += 100;
 
         matrixRead(scanKeys);
-        speakerStopAll();
+        // speakerStopAll();
 
+        displayClear();
+        displayWriteRadixXY(2, 10, scanKeys[1], RADIX_BINARY);
+        displayUpdate();
+
+        uint8_t found = 0;
         for(uint8_t index = 0; index < keyCount; index += 1) {
             const uint8_t key = pianoKeys[index];
 
             if(matrixKeyPressed(scanKeys, key)) {
-                const int8_t note = keyNote(key);
-                speakerPlayNote(note, 4);
+                const int8_t value = keyNote(key);
+                speakerPlayNote(createNote(value, 4));
+                found = 1;
+                break;
             }
         }
+
+        if(!found)
+            speakerStopAll();
     }
 }

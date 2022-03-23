@@ -66,11 +66,11 @@ void matrixInitialize() {
     pinMode(_MATRIX_PIN_COLUMN_3, INPUT);
 
     pinMode(_MATRIX_PIN_VALUE, OUTPUT);
+    Serial.println("matrix initialized");
 }
 
 void matrixRead(uint8_t *rows) {
 
-    uint8_t offset = 0;
     for(uint8_t rowIndex = 0; rowIndex < 8; rowIndex += 1) {
         digitalWrite(_MATRIX_PIN_ENABLE, LOW);
 
@@ -87,8 +87,10 @@ void matrixRead(uint8_t *rows) {
                 | digitalRead(_MATRIX_PIN_COLUMN_2) << 2
                 | digitalRead(_MATRIX_PIN_COLUMN_3) << 3;
 
-        rows[rowIndex / 2] = (~result & 0xF) << (4 * offset);
-        offset = !offset;
+        if(rowIndex % 2 == 0)
+            rows[rowIndex / 2] = ~result &0xF;
+        else
+            rows[rowIndex / 2] |= (~result & 0xF) << 4;
     }
 }
 
