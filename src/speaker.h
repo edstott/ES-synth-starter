@@ -369,9 +369,10 @@ void speakerUpdate() {
             : _channelCount;
 
     _channelCount = _bufferSize;
-    for(uint8_t index = 0; index < maxSize; index += 1) {
-        _channels[index] = _buffer[index];
-    }
+    for(uint8_t index = 0; index < maxSize; index += 1)
+        __atomic_store_n(&(_channels[index]), 
+                _buffer[index], 
+                __ATOMIC_RELAXED);
 
     // for(uint8_t index = 0; index < _channelCount; index += 1) {
     //     Serial.printf("%d%s", 

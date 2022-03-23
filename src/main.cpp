@@ -48,25 +48,20 @@ void loop() {
         next += 100;
 
         matrixRead(scanKeys);
-        // speakerStopAll();
 
         displayClear();
         displayWriteRadixXY(2, 10, scanKeys[1], RADIX_BINARY);
         displayUpdate();
 
-        uint8_t found = 0;
+        speakerStop();
         for(uint8_t index = 0; index < keyCount; index += 1) {
             const uint8_t key = pianoKeys[index];
 
             if(matrixKeyPressed(scanKeys, key)) {
                 const int8_t value = keyNote(key);
                 speakerPlayNote(createNote(value, 4));
-                found = 1;
-                break;
             }
         }
-
-        if(!found)
-            speakerStopAll();
+        speakerUpdate();
     }
 }
