@@ -16,11 +16,6 @@
 
 // ----------------------------------------------------------------------------
 
-#define _SPEAKER_BUFFER  0
-#define _SPEAKER_CURRENT 1
-
-// ----------------------------------------------------------------------------
-
 #define WAVEFORM_SAWTOOTH 0
 #define WAVEFORM_SQUARE   1
 #define WAVEFORM_TRIANGLE 2
@@ -68,11 +63,11 @@ static uint8_t _volume = 0;
 
 static uint8_t _waveform = WAVEFORM_SAWTOOTH;
 
-static int16_t _channels[_SPEAKER_CHANNEL_CAPACITY];
-static int16_t _channelsBuffer[_SPEAKER_CHANNEL_CAPACITY];
+static int16_t _buffer[_SPEAKER_CHANNEL_CAPACITY] = {-1};
+static int16_t _bufferSize = 0;
 
+static int16_t _channels[_SPEAKER_CHANNEL_CAPACITY] = {-1};
 static uint8_t _channelCount = 0;
-static uint8_t _channelCountBuffer = 0;
 
 // ----------------------------------------------------------------------------
 
@@ -230,29 +225,21 @@ void updateRoutine() {
     }
 
     uint8_t values[_channelCount] = {0};
-    uint8_t valueIndex = 0;
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_CAPACITY; index += 1) {
-        if(valueIndex == _channelCount)
-            break;
-
+    for(uint8_t index = 0; index < _channelCount; index += 1) {
         const int16_t pitch = _channels[index];
-        if(pitch == -1)
-            continue;
 
         uint8_t value = 0;
         if(_waveform == WAVEFORM_SAWTOOTH)
-            value = generateSawtooth(pitch, microsecondTime);
+            values[index] = generateSawtooth(pitch, microsecondTime);
         else if(_waveform == WAVEFORM_SQUARE)
-            value = generateSquare(pitch, microsecondTime);
+            values[index] = generateSquare(pitch, microsecondTime);
         else if(_waveform == WAVEFORM_TRIANGLE)
-            value = generateTriangle(pitch, microsecondTime);
-
-        values[valueIndex] = value;
-        valueIndex += 1;
+            values[index] = generateTriangle(pitch, microsecondTime);
     }
 
     const uint8_t mixedChannels = mixChannels(values, _channelCount);
     const uint8_t amplitude = scaleVolume(mixedChannels, _volume);
+
     analogWrite(_SPEAKER_PIN_RIGHT, amplitude);
 }
 
@@ -264,10 +251,10 @@ Configures the update ISR and initializes speaker ports
 */
 void speakerInitialize() {
     for(uint8_t index = 0; index < _SPEAKER_CHANNEL_CAPACITY; index += 1) {
-        _channelBuffer[index] = -1;
+        _buffer[index] = -1;
         _channels[index] = -1;
     }
-    _channelCountBuffer = 0;
+    _bufferSize = 0;
     _channelCount = 0;
 
     pinMode(_SPEAKER_PIN_LEFT, OUTPUT);
@@ -325,25 +312,11 @@ note:
     the note to play
 */
 uint8_t speakerPlayNote(const Note note) {
-    const int16_t pitch = notePitch(note);
+    if(_bufferSize == _SPEAKER_CHANNEL_CAPACITY)
+        return false;
 
-    uint8_t found = 0;
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_CAPACITY; index += 1) {
-        if(_channelBuffer[index] == -1 && found == false) {
-            _channelBuffer[index] = pitch;
-            _channelCountBuffer += 1;
-            found = true;
-        }
-
-        else if(_channelBuffer[index] == pitch) {
-            if(found)
-                _channelBuffer[index] = -1;
-            else
-                found = true;
-        }
-    }
-
-    return found;
+    _buffer[_bufferSize] = notePitch(note);
+    _bufferSize += 1;
 }
 
 /* Stops playing a note; takes effect on the next update
@@ -355,29 +328,41 @@ note:
 */
 uint8_t speakerStopNote(const Note note) {
     const int16_t pitch = notePitch(note);
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_CAPACITY; index += 1) {
-        if(_channelBuffer[index] == pitch) {
-            _channelBuffer[index] = -1;
-            _channelCountBuffer -= 1;
-            return true;
+
+    uint8_t startIndex = 0;
+    uint8_t found = false;
+    for(startIndex = 0; startIndex < _bufferSize; startIndex += 1) {
+        if(_buffer[startIndex] == pitch) {
+            found = true;
+            break;
         }
     }
 
-    return false;
+    if(found == false)
+        return false;
+
+    _buffer[startIndex] = -1;
+    for(uint8_t index = startIndex; index < (_bufferSize - 1); index += 1)
+        _buffer[index] = _buffer[index + 1];
 }
 
 // Stops playing all notes. Takes effect on the next update
-void speakerStopAll() {
-    for(uint8_t index = 0; index < _SPEAKER_CHANNEL_CAPACITY; index += 1)
-        _channelBuffer[index] = -1;
-    _channelCountBuffer = 0;
+void speakerStop() {
+    for(uint8_t index = 0; index < _bufferSize; index += 1)
+        _buffer[index] = -1;
+    _bufferSize = 0;
 }
 
 
 // Pushes the buffered channels
 void speakerUpdate() {
-    _channels = _channelBuffer;
-    _channelCount = _channelCountBuffer;
+    const uint8_t maxSize = (_bufferSize > _channelCount)
+            ? _bufferSize
+            : _channelCount;
+
+    _channelCount = _bufferSize;
+    for(uint8_t index = 0; index < maxSize; index += 1)
+        _channels[index] = _buffer[index];
 }
 
 #endif // __SPEAKER_H_
