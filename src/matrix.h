@@ -47,12 +47,39 @@
 #define KNOB_3_A _MATRIX_ENCODE_INDEX(3, 0)
 #define KNOB_3_B _MATRIX_ENCODE_INDEX(3, 1)
 #define KNOB_3_S _MATRIX_ENCODE_INDEX(5, 1)
+#define KNOB_0_MAX 7    // Octaves
+#define KNOB_0_MIN 1    // Octaves
+#define KNOB_1_MAX 2    // Waveforms
+#define KNOB_1_MIN 0    // Waveforms
+#define KNOB_2_MAX 127
+#define KNOB_2_MIN 0
+#define KNOB_3_MAX 100  // Volume
+#define KNOB_3_MIN 0    // Volume
 
-#define JOYSTICK_S    _MATRIX_ENCODE_INDEX(5, 2)
-#define JOYSTICK_EAST _MATRIX_ENCODE_INDEX(6, 3)
-#define JOYSTICK_WEST _MATRIX_ENCODE_INDEX(5, 3)
+#define JOYSTICK_S   _MATRIX_ENCODE_INDEX(5, 2)
+#define EAST_DETECT  _MATRIX_ENCODE_INDEX(6, 3)
+#define WEST_DETECT  _MATRIX_ENCODE_INDEX(5, 3)
 
 // ----------------------------------------------------------------------------
+
+static const uint8_t encoder_lut[16] = {0x0, 0x0, 0x0, 0x3,
+                                        0x2, 0x0, 0x3, 0x1,
+                                        0x1, 0x3, 0x0, 0x2,
+                                        0x3, 0x0, 0x0, 0x0};
+
+static const uint8_t encoder_max[] = {KNOB_0_MAX,
+                                      KNOB_1_MAX,
+                                      KNOB_2_MAX,
+                                      KNOB_3_MAX};
+
+static const uint8_t encoder_min[] = {KNOB_0_MIN,
+                                      KNOB_1_MIN,
+                                      KNOB_2_MIN,
+                                      KNOB_3_MIN};
+uint8_t KNOB[4];
+bool KNOB_EXTRA[4];
+
+uint8_t encoderAngle[4];
 
 void matrixInitialize() {
     pinMode(_MATRIX_PIN_ROW_0, OUTPUT);
@@ -67,6 +94,29 @@ void matrixInitialize() {
 
     pinMode(_MATRIX_PIN_VALUE, OUTPUT);
     Serial.println("matrix initialized");
+    encoderAngle[3] = 50;
+}
+
+void encoderHandle(uint8_t *rows){
+    for (int i = 0; i < 4; i++){
+        if (encoder_lut[KNOB[i]] == 0x03) KNOB_EXTRA[i] = false;
+        else KNOB_EXTRA[i] = false;
+    }
+    // Load current encoder values into encoder chars
+    KNOB[0] = 0x0F & ((KNOB[0] << 2) | ((rows[2] & 0x0C)) >> 2);
+    KNOB[1] = 0x0F & ((KNOB[1] << 2) | (rows[2] & 0x03));
+    KNOB[2] = 0x0F & ((KNOB[2] << 2) | ((rows[1] & 0xC0)) >> 6);
+    KNOB[3] = 0x0F & ((KNOB[3] << 2) | ((rows[1] & 0x30)) >> 4);
+
+    for (int i = 0; i < 4; i++){
+        if (encoder_lut[KNOB[i]] == 1){
+            if (KNOB_EXTRA[i] && encoderAngle[i] <= encoder_max[i]-2) encoderAngle[i] += 2;
+            else if (encoderAngle[i] <= encoder_max[i]-1) encoderAngle[i] += 1;
+        }else if (encoder_lut[KNOB[i]] == 2){
+            if (KNOB_EXTRA[i] && encoderAngle[i] >= encoder_min[i]+2) encoderAngle[i] -= 2;
+            else if (encoderAngle[i] >= encoder_min[i]+1) encoderAngle[i] -= 1;
+        }
+    }
 }
 
 void matrixRead(uint8_t *rows) {

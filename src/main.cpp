@@ -10,10 +10,7 @@ void setup() {
 
     matrixInitialize();
     displayInitialize();
-    speakerInitialize();
-
-    speakerSetVolume(64);
-    speakerSetWaveform(WAVEFORM_SAWTOOTH);
+    speakerInitialize();    
 }
 
 int8_t keyNote(const uint8_t key) {
@@ -44,13 +41,17 @@ void loop() {
     };
 
     uint8_t scanKeys[4];
+
     if(millis() > next) {
-        next += 100;
+        next += 20;
 
         matrixRead(scanKeys);
+        encoderHandle(scanKeys);
+        speakerSetVolume(encoderAngle[3]);
+        speakerSetWaveform(encoderAngle[1]);
 
         displayClear();
-        displayWriteRadixXY(2, 10, scanKeys[1], RADIX_BINARY);
+        displayWriteRadixXY(97, 30, encoderAngle[3], RADIX_DECIMAL);
         displayUpdate();
 
         speakerStop();
