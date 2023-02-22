@@ -47,7 +47,7 @@ Get started by installing Platformio and forking the starter code
 > STM32duino is built on top of [STM32Cube](https://www.st.com/en/ecosystems/stm32cube.html), which is the manufacturer’s hardware abstraction layer (HAL) for STM32 microcontrollers.
 > You can access the HAL in STM32duino just by including the relevant header files, but a few things require edits to the STM32duino files.
 > 
-> You can also build a STM32Cube from scratch.
+> You can also build a project with STM32Cube from scratch.
 > You can compile STM32Cube projects in Platformio, but you will probably need to start by generating initialisation code using [STM32CubeMX](https://www.st.com/en/development-tools/stm32cubemx.html), which is a GUI-based tool.
 > You can also use [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html), which is the manufacturer’s Eclipse-based IDE, as an alternative to VS Code and Platformio.
 > 
@@ -180,267 +180,268 @@ We will use a 32-bit signed phase accumulator because that is the word size of t
 That means it will overflow to $–(2^{31})$ when it reaches the value $2^{31}$.
 Then, the step size $S$ required to achieve a certain frequency $f$ is given by:
 
-$$S=\frac{2^{32}f}{f_\mathrm{s}}$$ 
+$$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 
-1. Define an array of the phase step sizes required for each of the 12 notes of your keyboard.
-   Since these values will be constants, use a const array initialiser of the form:
+1.	Define an array of the phase step sizes required for each of the 12 notes of your keyboard.
+	Since these values will be constants, use a const array initialiser of the form:
 		
-   ```C++
-   const int32_t stepSizes [] = { … };
-	 ```
-	 
-   Configure your keyboard to use equal temperament, which means that the difference in frequency between adjacent notes is a factor of $\sqrt[12]{2}$.
-	 Therefore, a span of 12 keys results in a doubling of frequency, which is one octave.
-	 Base your tuning on a frequency of 440Hz for the note A, which is the 10th key from the left of your keyboard and element 9 of your notes array.
+	```C++
+	const int32_t stepSizes [] = { … };
+	```
 
-![keyboard](keyboard.png)
-
-2. Add code to your main loop that will check the state of each key in `keyArray` and look up the corresponding step size in the `stepSizes` array if the key is pressed.
-   Store the result in a global variable:
-	 
-	 ```C++
-   volatile int32_t currentStepSize;
-	 ```
-	 
-   This variable will be accessed by more than one concurrent task, so it is declared with the keyword volatile.
-	 This instructs the compiler to access the variable in memory each time it appears in the source code.
-	 Otherwise, the compiled code may keep a copy of the variable in a CPU register and miss updates made by other tasks.
-	 
-   We will only be able to play one note at once at first, so if multiple keys are pressed just use the step size from the last key to be checked.
-	 If no keys are pressed then the step size should be set to zero.
-	 
-   Add information to the OLED display to show which note is selected.
-
-![Keyboard with key press detection](key-detect.jpg)
-
-3. Write a new function that will update the phase accumulator and set the analogue output voltage at each sample interval:
-
-   ```C++
-   void sampleISR() {
-   …
-   }
-   ```
-	 
-   It will be an interrupt service routine, which means that it cannot have arguments or a return value.
-	 The function will be triggered by an interrupt 22,000 times per second.
-	 It will add currentStepSize to the phase accumulator to generate the output waveform.
-	 Define the phase accumulator as a static local variable, so that its value will be stored between successive calls of sampleISR():
-
-   ```C++
-   static int32_t phaseAcc = 0;
-   phaseAcc += currentStepSize;
-   ```
-	 
-   The conversion from the phase accumulator to a sawtooth wave output is quite simple because the value of a sawtooth function is directly proportional to the phase.
-	 First, we will right-shift (divide by $2^n$) so that its range will be reduced to $-(2^7)\leq v\leq2^7-1$.
-
-   ```C++
-   int32_t Vout = phaseAcc >> 24;
-   ```
-	 
-   The Arduino `analogWrite()` function has a range of 0-255: 0 produces 0V and 255 produces 3.3V.
-	 Therefore, we need to add a DC offset so that an audio value of 0 produces a voltage of 1.65V
-
-   ```C++
-   analogWrite(OUTR_PIN, Vout + 128);
-   ```
-	 
-   Different waveform functions will require more maths to convert phase into output voltage.
-	 For example, a sine wave would require the calculation of a sin function.
-	 Whatever the waveform, it’s best to define the function to have a midpoint of zero and then add the DC offset in the final step.
-	 That makes it easier to add and multiply signals and keep the correct range of values.
-
-4. A timer is needed to trigger the interrupt that will call `sampleISR()`.
-   Create a timer in the setup function using the stm32duino library class `HardwareTimer`:
-
-   ```C++
-   TIM_TypeDef *Instance = TIM1;
-   HardwareTimer *sampleTimer = new HardwareTimer(Instance);
-   ```
-	 
-   The timer is configured by setting the period, attaching the ISR and starting the timer, also in the setup function:
-
-   ```C++
-   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
-   sampleTimer->attachInterrupt(sampleISR);
-   sampleTimer->resume();
-   ```
-	 
-   See the [documentation for the timer library](https://github.com/stm32duino/wiki/wiki/HardwareTimer-library) for more information.
+	You could also use `constexpr` to evaluate the step sizes in your code during compilation.
 	
-5. Test your code.
-   You should hear a note from the speaker when you press each key.
-	 You could test that the notes are correct with a guitar tuner app if you like.
+	Configure your keyboard to use equal temperament, which means that the difference in frequency between adjacent notes is a factor of $\sqrt[12]{2}$.
+	Therefore, a span of 12 keys results in a doubling of frequency, which is one octave.
+	Base your tuning on a frequency of 440Hz for the note A, which is the 10th key from the left of your keyboard and element 9 of your notes array.
+
+	![keyboard](keyboard.png)
+
+2.	Add code to your main loop that will check the state of each key in `keyArray` and look up the corresponding step size in the `stepSizes` array if the key is pressed.
+	Store the result in a global variable:
 	 
-	 > **Warning**
-	 > 
-	 >  Warning: there is no hardware volume control and headphones may be very loud.
-	 >  Do not use headphones until you have tested the loudness with the headphones away from your ears.
-
-	 > **Note**: Numerically Controlled Oscillator
-	 > 
-	 > You may wonder if it was necessary to use a 32-bit phase accumulator if only 8 bits are needed to create the waveform.
-	 > The technique is known as a numerically controlled oscillator and it allows a more accurate frequency than would be possible with an 8-bit accumulator.
-	 > The down sampling from the 32-bit accumulator to the 8-bit output means that each individual cycle of the waveform may have an inaccurate period, but that error is averaged out over multiple cycles.
-	 > The result is phase jitter, which is less obvious than a continuous frequency error.
-	 > 
-	 > If you try to generate very high tones you will hear aliased frequency components arising from the periodicity of the jitter, particularly for discontinuous waveforms like the sawtooth.
-	 > This is a limitation of the 22kHz sample rate.
-
-6. Even though the code works, there is a possible synchronisation bug.
-   The `currentStepSize` variable could be read in `sampleISR()` when it has been partially modified in the main loop.
-
-   The first improvement is to reduce the number of accesses to `currentStepSize` in the main loop to a single store operation.
-	 You were asked to check each key and update `currentStepSize` if the key is pressed.
-	 The code can be improved by using a local variable for the step size until all the keys have been checked.
-	 Then, when the final value is known, the local variable can be copied to `currentStepSize` so that the global variable is only accessed once.
-
-   Next, we can force the write to currentStepSize in the main loop to be an atomic operation using a built-in compiler function.
-	 The variable is a 32-bit integer so any write is likely to be atomic by default because it can be completed in a single CPU operation.
-	 However, using an atomic store function makes certain and shows anyone who maintains the code in future that the operation is intended to be atomic:
-
-   ```C++
-   __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
-   ```
+	```C++
+	volatile int32_t currentStepSize;
+	```
+	This variable will be accessed by more than one concurrent task, so it is declared with the keyword `volatile`.
+	This instructs the compiler to access the variable in memory each time it appears in the source code.
+	Otherwise, the compiled code may keep a copy of the variable in a CPU register and miss updates made by other tasks.
 	 
-	 This function stores `localCurrentStepSize` in `currentStepSize` as an atomic operation.
-	 The parameter `__ATOMIC_RELAXED` indicates that we need an atomic store, but we’re not concerned about the ordering of other instructions that don’t use the two variables in question.
-	 Refer to the documentation for more information about this parameter.
+	You will only be able to play one note at once at first, so if multiple keys are pressed just use the step size from the last key to be checked.
+	If no keys are pressed then the step size should be set to zero.
+	 
+	Add information to the OLED display to show which note is selected.
 
-   A complimentary call to `__atomic_load_n()` would be necessary if `currentStepSize` was read in another thread.
-	 However, since the variable is read in an ISR, an atomic operation is unneeded because the ISR cannot be interrupted by anything else that accesses the variable.
+	![Keyboard with key press detection](key-detect.jpg)
 
-   See the [compiler documentation](https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html) for more information about built-in atomic operations.
+3.	Write a new function that will update the phase accumulator and set the analogue output voltage at each sample interval:
+
+	```C++
+	void sampleISR() {
+	…
+	}
+	```
+	 
+	It will be an interrupt service routine, which means that it cannot have arguments or a return value.
+	The function will be triggered by an interrupt 22,000 times per second.
+	It will add currentStepSize to the phase accumulator to generate the output waveform.
+	Define the phase accumulator as a static local variable, so that its value will be stored between successive calls of sampleISR():
+
+	```C++
+	static int32_t phaseAcc = 0;
+	phaseAcc += currentStepSize;
+	```
+
+	The conversion from the phase accumulator to a sawtooth wave output is quite simple because the value of a sawtooth function is directly proportional to the phase.
+	First, right-shift (divide by $2^n$) so that its range will be reduced to $-(2^7)\leq v\leq2^7-1$.
+
+	```C++
+	int32_t Vout = phaseAcc >> 24;
+	```
+
+	The Arduino `analogWrite()` function has a range of 0-255: 0 produces 0V and 255 produces 3.3V.
+	Therefore, we need to add a DC offset so that an audio value of 0 produces a voltage of 1.65V
+
+	```C++
+	analogWrite(OUTR_PIN, Vout + 128);
+	```
+
+	Different waveform functions will require more maths to convert phase into output voltage.
+	For example, a sine wave would require the calculation of a sin function.
+	Whatever the waveform, it’s best to define the function to have a midpoint of zero and then add the DC offset in the final step.
+	That makes it easier to add and multiply signals and keep the correct range of values.
+
+4.	A timer is needed to trigger the interrupt that will call `sampleISR()`.
+	Create a timer in the setup function using the stm32duino library class `HardwareTimer`:
+
+	```C++
+	TIM_TypeDef *Instance = TIM1;
+	HardwareTimer *sampleTimer = new HardwareTimer(Instance);
+	```
+
+	The timer is configured by setting the period, attaching the ISR and starting the timer, also in the setup function:
+
+	```C++
+	sampleTimer->setOverflow(22000, HERTZ_FORMAT);
+	sampleTimer->attachInterrupt(sampleISR);
+	sampleTimer->resume();
+	```
+	 
+	See the [documentation for the timer library](https://github.com/stm32duino/wiki/wiki/HardwareTimer-library) for more information.
+	
+5.	Test your code.
+	You should hear a note from the speaker when you press each key.
+	You could test that the notes are correct with a guitar tuner app if you like.
+	 
+	> **Warning**
+	> 
+	>  Do not use headphones until you have tested the loudness with the headphones away from your ears.
+
+	> **Note**: Numerically Controlled Oscillator
+	> 
+	> You may wonder if it was necessary to use a 32-bit phase accumulator if only 8 bits are needed to create the waveform.
+	> The technique is known as a numerically controlled oscillator and it allows a more accurate frequency than would be possible with an 8-bit accumulator.
+	> The down sampling from the 32-bit accumulator to the 8-bit output means that each individual cycle of the waveform may have an inaccurate period, but that error is averaged out over multiple cycles.
+	> The result is phase jitter, which is less obvious than a continuous frequency error.
+	> 
+	> If you try to generate very high tones you will hear aliased frequency components arising from the periodicity of the jitter, particularly for discontinuous waveforms like the sawtooth.
+	> This is a limitation of the 22kHz sample rate.
+
+6.	Even though the code works, there is a possible synchronisation bug.
+	The `currentStepSize` variable could be read in `sampleISR()` when it has been partially modified in the main loop.
+
+	The first improvement is to reduce the number of accesses to `currentStepSize` in the main loop to a single store operation.
+	You were asked to check each key and update `currentStepSize` if the key is pressed.
+	The code can be improved by using a local variable for the step size until all the keys have been checked.
+	Then, when the final value is known, the local variable can be copied to `currentStepSize` so that the global variable is only accessed once.
+
+	Next, we can force the write to currentStepSize in the main loop to be an atomic operation using a built-in compiler function.
+	The variable is a 32-bit integer so any write is likely to be atomic by default because it can be completed in a single CPU operation.
+	However, using an atomic store function makes certain and shows anyone who maintains the code in future that the operation is intended to be atomic:
+
+	```C++
+	__atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+	```
+	 
+	This function (actually a compile macro) stores `localCurrentStepSize` in `currentStepSize` as an atomic operation.
+	The parameter `__ATOMIC_RELAXED` indicates that we need an atomic store, but we’re not concerned about the ordering of other instructions that don’t use the two variables in question.
+	Refer to the documentation for more information about this parameter.
+
+	A complementary call to `__atomic_load_n()` would be necessary if `currentStepSize` was read in another thread.
+	However, since the variable is read in an ISR, an atomic operation is unneeded because the ISR cannot be interrupted by anything else that accesses the variable.
+
+	See the [compiler documentation](https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html) for more information about built-in atomic operations.
 
 ### 4. Split key scanning and display update tasks with threading
 
-   Currently, the keys are read once every execution of the main loop.
-	 The main loop is also used to update the display, which is not ideal because it forces these tasks to have the same initiation interval.
-	 We will separate these two processes into different tasks by creating a thread to run the key scanning task.
+Currently, the keys are read once every execution of the main loop.
+The main loop is also used to update the display, which is not ideal because it forces these tasks to have the same initiation interval.
+We will separate these two processes into different tasks by creating a thread to run the key scanning task.
 
-1. Move all your code for scanning the keyboard into a single function:
+1.	Move all your code for scanning the keyboard into a single function:
 
-   ```C++
-   void scanKeysTask(void * pvParameters) {
-   …
-   }
-   ```
+	```C++
+	void scanKeysTask(void * pvParameters) {
+	…
+	}
+	```
+
+  	The function should do the following:
+	- Loop through the rows of the key matrix
+	- Read the columns of the matrix and store the result in `keyArray`
+	- Look up the phase step size for the key that is pressed and update `currentStepSize`
+
+	You will need to make `keyArray` a volatile, global variable so that it can be accessed by both `scanKeysTask()` and the main loop.
+
+	Test your code by calling `scanKeysTask()` in the main loop.
+	The parameter `pvParameters` will be used by the thread initialiser — just set it to NULL in your call.
+	Everything should work as before.
 	 
-   The function should do the following:
-   - Loop through the rows of the key matrix
-   - Read the columns of the matrix and store the result in `keyArray`
-   - Look up the phase step size for the key that is pressed and update `currentStepSize`
+2.	Install the 'STM32duino FreeRTOS' library with the Platformio library manager.
+	Include its header file at the start of your source file:
 
-   You will need to make `keyArray` a volatile, global variable so that it can be accessed by both `scanKeysTask()` and the main loop.
-
-   Test your code by calling `scanKeysTask()` in the main loop.
-	 The parameter `pvParameters` will be used by the thread initialiser — just set it to NULL in your call.
-	 Everything should work as before.
+	```C++
+	#include <STM32FreeRTOS.h>
+	```
 	 
-2. Install the 'STM32duino FreeRTOS' library with the Platformio library manager.
-      Include its header file at the start of your source file:
+	Now make `scanKeysTask()` an independent thread.
+	Convert it to an infinite loop by wrapping contents of the function in a while loop:
 
-   ```C++
-   #include <STM32FreeRTOS.h>
-   ```
+	```C++
+	while (1) {
+	…
+	}
+	```
 	 
-   Now we will make `scanKeysTask()` an independent thread.
-	 Convert it to an infinite loop by wrapping contents of the function in a while loop:
+	Add the following code into your `setup()` function to initialise and run the thread:
 
-   ```C++
-   while (1) {
-   …
-   }
-   ```
+	```C++
+	TaskHandle_t scanKeysHandle = NULL;
+	xTaskCreate(
+	scanKeysTask,		/* Function that implements the task */
+	"scanKeys",		/* Text name for the task */
+	64,      		/* Stack size in words, not bytes */
+	NULL,			/* Parameter passed into the task */
+	1,			/* Task priority */
+	&scanKeysHandle );  /* Pointer to store the task handle */
+	```
+
+	See the [API reference](https://www.freertos.org/a00125.html) for more information about this function call.
+	We have used a stack size of 64 words (256 bytes) for the thread.
+	The stack needs to be large enough to store all the local variables of the functions called in the thread.
+
+	Add this function call at the end of the setup function to start the RTOS scheduler:
+
+	```C++
+	vTaskStartScheduler();
+	```
+
+	Remove the call to scanKeysTask() from the main loop.
+
+3.	The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
+	We can use the RTOS function `vTaskDelayUntil()` to do this — it blocks execution until a certain time has passed since the last time the function was completed.
+
+	Declare two local variables in `scanKeysTask()`, before the loop:
+
+	```C++
+	const TickType_t xFrequency = 50/portTICK_PERIOD_MS;
+	TickType_t xLastWakeTime = xTaskGetTickCount();
+	```
 	 
-   Add the following code into your `setup()` function to initialise and run the thread:
+	`xFrequency` will be the initiation interval of the task.
+	It is given in units of RTOS scheduler ticks and we can use the constant `portTICK_PERIOD_MS` to convert a time in milliseconds to scheduler ticks.
+	Here we have set the initiation interval to 50ms.
 
-   ```C++
-   TaskHandle_t scanKeysHandle = NULL;
-   xTaskCreate(
-   scanKeysTask,		/* Function that implements the task */
-   "scanKeys",		/* Text name for the task */
-   64,      		/* Stack size in words, not bytes */
-   NULL,			/* Parameter passed into the task */
-   1,			/* Task priority */
-   &scanKeysHandle );  /* Pointer to store the task handle */
-   ```
+	`xLastWakeTime` will store the time (tick count) of the last initiation.
+	We initialise it with the API call `xTaskGetTickCount()` to get the current time.
+
+	Now you can add the blocking call to `vTaskDelayUntil()` at the start of your infinite loop:
+
+	```C++
+	vTaskDelayUntil( &xLastWakeTime, xFrequency );
+	```
 	 
-   See the [API reference](https://www.freertos.org/a00125.html) for more information about this function call.
-	 We have used a stack size of 64 words (256 bytes) for the thread.
-	 The stack needs to be large enough to store all the local variables of the functions called in the thread.
+	This function call blocks execution of the thread until `xFrequency ticks` have happened since the last execution of the loop.
+	As an RTOS function, it places the thread into the waiting state and allows the CPU to do other tasks until it is time to run the function again.
+	When the required time has passed, `xLastWakeTime` is updated by the RTOS ready for the next iteration.
+	See the [API reference](https://www.freertos.org/vtaskdelayuntil.html) for more information about this function call.
 
-   Add this function call at the end of the setup function to start the RTOS scheduler:
+4.	Test your code.
+	It should behave as before.
+	You may have noticed another potential synchronisation bug with the `keyArray` array.
+	`keyArray` cannot be treated as a simple atomic variable because it is a multi-word array.
+	We will solve the problem in the next section using a mutex.
 
-   ```C++
-   vTaskStartScheduler();
-   ```
+5.	The main loop is usually left empty in FreeRTOS systems.
+	Create another thread to run the display update task (name the function `displayUpdateTask()`) with a 100ms initiation interval.
+	Remove the original, polling-based rate control implemented with `if (millis() > next) {…}` and replace it with an infinite loop and a call to `vTaskDelayUntil()`.
 
-   Remove the call to scanKeysTask() from the main loop.
+	Since 100ms is longer than 50ms, set the priority of the display update thread to 1 and the key scanning thread to 2 (higher priority).
+	Use a stack size of 256 words for `displayUpdateTask()`.
+	Your `loop()` function should now be empty.
 
-3. The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
-   We can use the RTOS function `vTaskDelayUntil()` to do this — it blocks execution until a certain time has passed since the last time the function was completed.
-
-   Declare two local variables in `scanKeysTask()`, before the loop:
-
-   ```C++
-   const TickType_t xFrequency = 50/portTICK_PERIOD_MS;
-   TickType_t xLastWakeTime = xTaskGetTickCount();
-   ```
-	 
-   `xFrequency` will be the initiation interval of the task.
-	 It is given in units of RTOS scheduler ticks and we can use the constant `portTICK_PERIOD_MS` to convert a time in milliseconds to scheduler ticks.
-	 Here we have set the initiation interval to 50ms.
-
-   `xLastWakeTime` will store the time (tick count) of the last initiation.
-	 We initialise it with the API call `xTaskGetTickCount()` to get the current time.
-
-   Now you can add the blocking call to `vTaskDelayUntil()` at the start of your infinite loop:
-
-   ```C++
-   vTaskDelayUntil( &xLastWakeTime, xFrequency );
-   ```
-	 
-	 This function call blocks execution of the thread until `xFrequency ticks` have happened since the last execution of the loop.
-	 As an RTOS function, it places the thread into the waiting state and allows the CPU to do other tasks until it is time to run the function again.
-	 When the required time has passed, `xLastWakeTime` is updated by the RTOS ready for the next iteration.
-	 See the [API reference](https://www.freertos.org/vtaskdelayuntil.html) for more information about this function call.
-
-4. Test your code.
-   It should behave as before.
-	 You may have noticed another potential synchronisation bug with the `keyArray` array.
-	 `keyArray` cannot be treated as a simple atomic variable because it is a multi-word array.
-	 We will solve the problem in the next section using a mutex.
-
-5. The main loop is usually left empty in FreeRTOS systems.
-   Create another thread to run the display update task (name the function `displayUpdateTask()`) with a 100ms initiation interval.
-	 Remove the original, polling-based rate control implemented with `if (millis() > next) {…}` and replace it with an infinite loop and a call to `vTaskDelayUntil()`.
-	 Since 100ms is longer than 50ms, set the priority of the display update thread to 1 and the key scanning thread to 2 (higher priority).
-	 Use a stack size of 256 words for `displayUpdateTask()`.
-	 Your `loop()` function should now be empty.
-
-	 > **Note**: How much stack?
-	 > 
-	 > 
-	 > The stack stores the arguments, local variables and return pointers for functions that are called.
-	 > Each thread has its own stack.
-	 > The total stack required depends on the worst-case combination of function calls.
-	 > Recursive functions are a bad idea when the stack size is fixed because the worst-case stack requirement depends on the data and it can be hard to determine.
-	 > 
-	 > There are two methods to determine the amount of stack to allocate to a thread:
-	 > 1. Examine the compiler output to find the stack footprint of every function.
-	 >    Then, add together the combinations of functions that could all be in progress at the same time inside one thread.
-	 >    The use of libraries makes this process more difficult because they might have their own chains of function calls that are hard to inspect.
-	 >    The Inspect view in Platformio can be used to explore memory usage in your project.
-	 > 2. Find it at runtime.
-	 >    The FreeRTOS function `uxTaskGetStackHighWaterMark()` returns the largest amount of stack that a thread has ever needed.
-	 >    You can allocate a large stack at first and then optimise when the code is working.
-	 >    You need to ensure that all the code has been exercised before you report the stack high water mark.
-	 > 
-	 > If a thread in your system runs out of stack the RTOS will enter an error state in an infinite loop.
-	 > The LED on the microcontroller module will flash in bursts of 4 flashes.
-	 > 
-	 > You can reduce the stack requirement by using dynamically allocated memory with `new` or `malloc()`.
-	 > Dynamic memory comes from a single pool (the heap), so it is more flexible than the per-thread allocation of stack memory.
+	> **Note**: How much stack?
+	> 
+	> 
+	> The stack stores the arguments, local variables and return pointers for functions that are called.
+	> Each thread has its own stack.
+	> The total stack required depends on the worst-case combination of function calls.
+	> Recursive functions are a bad idea when the stack size is fixed because the worst-case stack requirement depends on the data and it can be hard to determine.
+	> 
+	> There are two methods to determine the amount of stack to allocate to a thread:
+	> 1. Examine the compiler output to find the stack footprint of every function.
+	>    Then, add together the combinations of functions that could all be in progress at the same time inside one thread.
+	>    The use of libraries makes this process more difficult because they might have their own chains of function calls that are hard to inspect.
+	>    The Inspect view in Platformio can be used to explore memory usage in your project.
+	> 2. Find it at runtime.
+	>    The FreeRTOS function `uxTaskGetStackHighWaterMark()` returns the largest amount of stack that a thread has ever needed.
+	>    You can allocate a large stack at first and then optimise when the code is working.
+	>    You need to ensure that all the code has been exercised before you report the stack high water mark.
+	> 
+	> If a thread in your system runs out of stack the RTOS will enter an error state in an infinite loop.
+	> The LED on the microcontroller module will flash in bursts of 4 flashes.
+	> 
+	> You can reduce the stack requirement by using dynamically allocated memory with `new` or `malloc()`.
+	> Dynamic memory comes from a single pool (the heap), so it is more flexible than the per-thread allocation of stack memory.
 
 	 
