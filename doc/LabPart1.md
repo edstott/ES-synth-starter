@@ -177,9 +177,8 @@ Over time, the phase accumulator will count up until it overflows and starts aga
 Each overflow of the phase accumulator represents one period of the output waveform.
 Increasing the step size causes the phase accumulator to overflow after fewer sample periods and therefore the frequency is higher.
 
-We will use a 32-bit signed phase accumulator because that is the word size of the CPU.
-That means it will overflow to $–(2^{31})$ when it reaches the value $2^{31}$.
-Then, the step size $S$ required to achieve a certain frequency $f$ is given by:
+We will use a 32-bit unsigned phase accumulator because that is the word size of the CPU.
+That means it will overflow with a modulus of $2^{32}$ and the step size $S$ required to achieve a certain frequency $f$ is given by:
 
 $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 
@@ -187,7 +186,7 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 	Since these values will be constants, use a const array initialiser of the form:
 		
 	```C++
-	const int32_t stepSizes [] = { … };
+	const uint32_t stepSizes [] = { … };
 	```
 
 	You could also use `constexpr` to evaluate the step sizes in your code during compilation.
@@ -202,7 +201,7 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 	Store the result in a global variable:
 	 
 	```C++
-	volatile int32_t currentStepSize;
+	volatile uint32_t currentStepSize;
 	```
 	This variable will be accessed by more than one concurrent task, so it is declared with the keyword `volatile`.
 	This instructs the compiler to access the variable in memory each time it appears in the source code.
@@ -226,31 +225,36 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 	It will be an interrupt service routine, which means that it cannot have arguments or a return value.
 	The function will be triggered by an interrupt 22,000 times per second.
 	It will add currentStepSize to the phase accumulator to generate the output waveform.
-	Define the phase accumulator as a static local variable, so that its value will be stored between successive calls of sampleISR():
+	Define the phase accumulator as a static local variable, so that its value will be stored between successive calls of `sampleISR()`:
 
 	```C++
-	static int32_t phaseAcc = 0;
+	static uint32_t phaseAcc = 0;
 	phaseAcc += currentStepSize;
 	```
 
-	The conversion from the phase accumulator to a sawtooth wave output is quite simple because the value of a sawtooth function is directly proportional to the phase.
-	First, right-shift (divide by $2^n$) so that its range will be reduced to $-(2^7)\leq v\leq2^7-1$.
+	The conversion from the phase accumulator to a sawtooth wave output voltage is quite simple because the value of a sawtooth function is directly proportional to the phase.
+	Right-shift (divide by $2^n$) the phase accumlator and subtract $2^7$, to scale the range to $-2^7\leq V_\text{out}\leq2^7-1$:
 
 	```C++
-	int32_t Vout = phaseAcc >> 24;
+	int32_t Vout = (phaseAcc >> 24) - 128;
 	```
 
 	The Arduino `analogWrite()` function has a range of 0-255: 0 produces 0V and 255 produces 3.3V.
-	Therefore, we need to add a DC offset so that an audio value of 0 produces a voltage of 1.65V
+	Therefore, you need to add 128 so that the median voltage (DC offset) is 1.65V.
 
 	```C++
 	analogWrite(OUTR_PIN, Vout + 128);
 	```
+	
+	You may wonder why 128 is subtracted, then added again.
+	In future, you will need to multiply and add signals, for example to implement a volume control or polyphony.
+	That will be easier when samples have an offset of zero because the offset will be unaffected by mathematical operations.
+	Meanwhile, the phase accumulator itself cannot have a zero offset because that would require a signed integer and the overflow of signed integers results in undefined behaviour in C and C++.
+	
 
 	Different waveform functions will require more maths to convert phase into output voltage.
 	For example, a sine wave would require the calculation of a sin function.
 	Whatever the waveform, it’s best to define the function to have a midpoint of zero and then add the DC offset in the final step.
-	That makes it easier to add and multiply signals and keep the correct range of values.
 
 4.	A timer is needed to trigger the interrupt that will call `sampleISR()`.
 	Create a timer in the setup function using the stm32duino library class `HardwareTimer`:
