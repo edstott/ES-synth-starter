@@ -31,10 +31,11 @@ Get started by installing Platformio and forking the starter code
 1. Install Visual Studio Code, if you don’t have it already, and add Platformio from the website, or by searching for it in the VS Code extensions marketplace
 2. Fork the starter code from GitHub. You can use the GitHub extension for VS Code, use git from the command line or any other client, or download the zipped project files from GitHub. Open the project folder in VS Code
 3. Switch to the Platformio Home tab with the 🏠 button on the bottom toolbar and select the libraries view. Search for the U8g2 display driver library, select the latest version and add it to the project.
-4. Connect the microcontroller module on the synth to your computer with a USB cable.
-5. Compile and the code and flash it to the MCU using the → button on the bottom toolbar
-6. The ‘Hello World’ message should appear on the OLED display.
-7. Open the serial monitor using the 🔌 button on the toolbar.
+4. (Windows only) Install the [STLINK driver](https://www.st.com/en/development-tools/stsw-link009.html). A copy is available in Teams if you want to avoid creating an account.
+5. Connect the microcontroller module on the synth to your computer with a USB cable.
+6. Compile and the code and flash it to the MCU using the → button on the bottom toolbar
+7. The ‘Hello World’ message should appear on the OLED display.
+8. Open the serial monitor using the 🔌 button on the toolbar.
    Press the reset button on the synth (SW19) or the MCU module (B1) and you will see the `Hello World’ message on the terminal
    
 ![Hello World](hello-world.jpg)
