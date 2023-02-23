@@ -101,4 +101,17 @@ The double bufffer implementation here is lightweight but it makes some assumpti
 3. 	The code uses C arrays, which have no built-in protection against out-of-bounds access.
 	We assume there are no bugs that would result in accessing data outside an array.
 	
+### Double buffering with DMA
+The STM32 DMA module is designed for use with double buffering.
+To adapt the code from above:
+1.	Make the sample buffers contiguous in memory:
+	
+	```c++
+	uint32_t sampleBuffer0[SAMPLE_BUFFER_SIZE*2];
+	uint32_t sampleBuffer1[] = sampleBuffer0 + SAMPLE_BUFFER_SIZE;
+	```
+2.	Set the DMA to copy samples from `sampleBuffer0` to the DAC at $f_s$.
+	The read pointer should be set to auto-increment.
+3.	Enable interrupts when the DMA read is complete and when it is half-complete.
+	Write an ISR that will trigger the buffer swap and release the generator thread.
 
