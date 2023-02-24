@@ -25,7 +25,8 @@
   The value is latched on the rising edge of `R5` (`R6` for the east output), which is one of the row driver signals for the key scanning matrix.
   Therefore, whenever the key scanning matrix addresses row 5, the west handshake output is updated.
   You must set `OUT_PIN` to the correct value every time row 5 is accessed. Normally, you would do that in the key scanning routine, for example:
-  ```
+  
+  ```c++
   for (i=0; i<7; i++) {
     selectRow(i);                     //Set row address
     digitalWrite(OUT_PIN,outBits[i]); //Set value to latch in DFF
@@ -35,6 +36,7 @@
     digitalWrite(REN_PIN,0);          //Disable selected row
   }
   ```
+  
   Here, `outBits` is an array of bools that contains the values to latch in the DFF for each row. The DFFs have the following functions:
   | Row    | DFF function  |
   | ------ | ------------- |
@@ -56,10 +58,14 @@
   A high input causes the FET to turn on, which, when the row is selected (driven low), pulls the column input low and is read as 0.
   The resistor ensures that the FET is off if nothing is connected to the input - this is read as 1.
   
+  > ** Warning **
+  > The FET acts to invert the logic signal.
+  > So if one module sets a handshaking output high (on), the adjacent module will read a logic 0, and vice versa
+  
   You read the handshake inputs just like a physical switch and the code example above already includes both handshake inputs in `keyArray`.
   The positions of the inputs in the matrix are:
   | HS Input | Row  | Column |
-  | -------- | ----- | -------|
+  | -------- | ---- | -------|
   | West     | 5    | 3      |
   | East     | 6    | 3      |
     
@@ -71,21 +77,21 @@
   Four or more modules is more complex because there are multiple centre modules. On startup, you can do something like this:
   1. Get a unique ID for the module.
   You can use the microcontroller's built-in, 96-bit ID, which is accessed through the HAL functions `HAL_GetUIDw0()`, `HAL_GetUIDw1()` and `HAL_GetUIDw2()`. It consists of a few different fields, some binary, some ASCII. You may want to generate a hash to get a smaller data type.
-  2. At startup, set both handshake outputs (west and east) high (on)
+  2. At startup, set both handshake outputs (west and east) on
   3. Wait long enough for all the other modules to start and switch on their handshake outputs
-  4. Read the handshake inputs. Is the west input high (off)? If so:
+  4. Read the handshake inputs. Is the west input off (logic 1)? If so:
      - This is the most westerely module (position 0)
-     - If the east input is also high (off), it is the only module, so end handshaking here
+     - If the east input is also off, it is the only module, so end handshaking here
      - Broadcast a handshaking message on the CAN bus that starts with a predefined symbol for handshaking and contains this module's ID and position (0)
-     - Set the east handshake signal low (off)
+     - Set the east handshake signal off
   5. If the module is not the most westerly, it must wait for handshaking messages on the CAN bus and for the west handshake input to change:
      - Record the ID and position of each module that sends a message
-     - Has the west handshake input has changed to high (off)? If so:
+     - Has the west handshake input has changed to off? If so:
        - This module's position is one greater than the position of the previous message
-       - Broadcast a new handshaking message and set the east handshake output low (off)
+       - Broadcast a new handshaking message and set the east handshake output off
        - If this module is the most easterly, send another CAN message to indicate handshaking complete
 
   Once handshaking is complete, each module will contain a data structure listing the ID and position of every module.
   This can be used to set up the role and octave number of each module.
   
-  You may wish to consider live plugging and unplugging of modules as well as detecting a static configuration. One way you could do this is to hold all the handshake outputs high during normal operation. If any module detects a neighbour connecting or disconnecting, it can broadcast a CAN message that triggers a new auto-detection sequence.
+  You may wish to consider live plugging and unplugging of modules as well as detecting a static configuration. One way you could do this is to hold all the handshake outputs on during normal operation. If any module detects a neighbour connecting or disconnecting, it can broadcast a CAN message that triggers a new auto-detection sequence.
