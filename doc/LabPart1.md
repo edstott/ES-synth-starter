@@ -424,6 +424,11 @@ We will separate these two processes into different tasks by creating a thread t
 	Since 100ms is longer than 50ms, set the priority of the display update thread to 1 and the key scanning thread to 2 (higher priority).
 	Use a stack size of 256 words for `displayUpdateTask()`.
 	Your `loop()` function should now be empty.
+	
+	The starter code toggles the LED on every 100ms loop — you should keep this statement in your display update thread to satisfy a coursework specification.
+	Since the display update thread will probably have the longest initiation interval in your system, if it meets its deadline, then every other task in the system will also meet its deadline (assuming rate-monotonic scheduling).
+	Therefore, the LED is a useful indicator that the code meets its real time requirements.
+	As you add functionality, look out for the LED flash rate slowing, especially under heavy workload such as polyphony with the maximum number of simultaneous notes.
 
 	> **Note**: How much stack?
 	> 
