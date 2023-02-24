@@ -172,6 +172,20 @@ Note that the rotation variable is only incremented or decremented when input A 
 	-	Read the current rotation value
 
 	Make the class thread safe, meaning that all public methods behave as reenterant functions and they can be called from concurrent tasks without need needing additional synchronisation locks.
+	
+	> **Note**: Global variables and synchronisation in embedded code
+	> 
+	> Embedded programming in C or C++ tends to create numerous global variables, which are discouraged in general programming because the global scope tends to lead to bugs.
+	> They arise in embedded code because threads don't terminate and instead must interact with other tasks as and when external events or timers require processing.
+	> Furthermore, interrupts can occur at any point and they cannot accept parameters or generate return values like normal functions.
+	> 
+	> Passing data between parallel tasks requires synchronisation (mutex, queue, critical section etc.) and its easy to introduce bugs when there are many global variables, each with their own method of synchronisation.
+	> Synchronisation itself introduces additional global objects including semaphore and queue objects.
+	> Consider organising and accessing your shared data in a way that will reduce the occurance of bugs, for example:
+	> - Group global variables into structs or singeton classes, so fewer objects are shared
+	> - Define all global variables in a single source file and declare them as required in other source  files with `extern`
+	> - Create access methods or functions that read, write or update shared objects so that you don't need to replicate synchronisation code in different tasks
+	> - In C++, use RAII (resource acquisition is initialization) to obtain mutex locks automatically in a local scope
 
 ### 2. CAN bus communication
 
