@@ -8,17 +8,18 @@ The sample frequency is much higher than an RTOS scheduler tick rate, so there r
 2. Set up a DMA module to automatically copy a new sample from memory to the DAC at the required interval
 
 Generating an audio sample can be computationally expensive, especially if convolution is used to implement a filter, or if several waveforms are being summed together.
-Doing this computation in an ISR can cause problems, such as:
+Doing this computation on demand, once per sample period causes a large proportion of the CPU workload to have a high priority.
+A large ISR workload can cause problems, such as:
 
 - Need to set interrupt priorities carefully so that other interrupts complete on time.
-  There can be a conflict with the RTOS, particularly if you need a higher priority than the interrupt used for the RTOS tick.
+- There can be a conflict with the RTOS, particularly if you need a higher priority than the interrupt used for the RTOS tick.
 - Unavailability of blocking synchronisation functions (e.g. lock a mutex) makes synchronisation more difficult.
-  The result is often a proliferation of critical sections in thread functions, which should be avoided
+  The result is often a proliferation of critical sections in thread functions, which are a very coarse method of synchronisation.
   
 A common solution is to calculate samples in batches in a lower-priority thread and use the interrupt just to copy the sample to the DAC.
 This is also the best approach when using the DMA, since the DMA can auto-increment its read pointer and copy successive bytes from memory.
 
-Whether the copy to DAC is done by interrupt or DMA, the array of samples is shared between two tasks: sample generation and copy to DAC.
+Whether the copy to DAC is done by interrupt or DMA, there is an intermediate storage of samples in memory that is shared between two tasks: sample generation and copy to DAC.
 That means it requires synchronisation.
 
 ### Double Buffer
@@ -100,6 +101,10 @@ The double bufffer implementation here is lightweight but it makes some assumpti
 	The code could be improved by testing for this condition and indicating an exception in some way.
 3. 	The code uses C arrays, which have no built-in protection against out-of-bounds access.
 	We assume there are no bugs that would result in accessing data outside an array.
+
+Another possibility could be to use the [FreeRTOS Stream Buffer](https://www.freertos.org/RTOS-stream-buffer-example.html).
+A stream buffer has a lower overhead than a queue and also has the limitation of one reader and one writer.
+However, it would not be suitable for use with DMA without modification.
 	
 ### Double buffering with DMA
 The STM32 DMA module is designed for use with double buffering.
