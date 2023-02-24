@@ -7,4 +7,7 @@
   [Lab Part 2](doc/LabPart2.md)
 
 ## Additional Information
+
   [Handshaking and auto-detection](doc/handshaking.md)
+  
+  [Double buffering of audio samples](doc/doubleBuffer.md)
