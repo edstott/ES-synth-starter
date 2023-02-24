@@ -157,6 +157,7 @@ Note that the rotation variable is only incremented or decremented when input A 
 	If the volume is 8, there is no change to the original value.
 	If the volume is reduced to 7, the output value is right-shifted by one and halved.
 	If the volume is zero, the right shift by 8 means that the output value is always ±1.
+	Since the values stored in `Vout` are signed, with a midpoint of zero, the result of the shift (arithmetic shift) will also have a midpoint of zero.
 	
 	Test the volume control.
 	You should find that steps in the volume control are approximately consistent in the perceived loudness.
