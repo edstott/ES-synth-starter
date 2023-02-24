@@ -58,7 +58,7 @@
   A high input causes the FET to turn on, which, when the row is selected (driven low), pulls the column input low and is read as 0.
   The resistor ensures that the FET is off if nothing is connected to the input - this is read as 1.
   
-  > ** Warning **
+  > **Warning**
   > The FET acts to invert the logic signal.
   > So if one module sets a handshaking output high (on), the adjacent module will read a logic 0, and vice versa
   
