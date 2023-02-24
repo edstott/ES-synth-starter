@@ -284,7 +284,7 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 
 	> **Note**: Numerically Controlled Oscillator
 	> 
-	> You may wonder if it was necessary to use a 32-bit phase accumulator if only 8 bits are needed to create the waveform.
+	> It may seem unnecessary to use a 32-bit phase accumulator if only 8 bits are needed to create the waveform.
 	> The technique is known as a numerically controlled oscillator and it allows a more accurate frequency than would be possible with an 8-bit accumulator.
 	> The down sampling from the 32-bit accumulator to the 8-bit output means that each individual cycle of the waveform may have an inaccurate period, but that error is averaged out over multiple cycles.
 	> The result is phase jitter, which is less obvious than a continuous frequency error.
