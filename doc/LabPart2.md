@@ -176,7 +176,7 @@ Note that the rotation variable is only incremented or decremented when input A 
 	
 	> **Note**: Global variables and synchronisation in embedded code
 	> 
-	> Embedded programming in C or C++ tends to create numerous global variables, which are discouraged in general programming because the global scope tends to lead to bugs.
+	> Embedded programming in C or C++ tends to create numerous global variables, which are [discouraged in general programming](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#i2-avoid-non-const-global-variables) because the global scope makes it hard to follow where variables are used.
 	> They arise in embedded code because threads don't terminate and instead must interact with other tasks as and when external events or timers require processing.
 	> Furthermore, interrupts can occur at any point and they cannot accept parameters or generate return values like normal functions.
 	> 
@@ -186,7 +186,7 @@ Note that the rotation variable is only incremented or decremented when input A 
 	> - Group global variables into structs or singeton classes, so fewer objects are shared
 	> - Define all global variables in a single source file and declare them as required in other source  files with `extern`
 	> - Create access methods or functions that read, write or update shared objects so that you don't need to replicate synchronisation code in different tasks
-	> - In C++, use RAII (resource acquisition is initialization) to obtain mutex locks automatically in a local scope
+	> - Use C++ RAII (resource acquisition is initialization) to obtain mutex locks automatically in a local scope
 
 ### 2. CAN bus communication
 
@@ -363,7 +363,7 @@ Only some of the features of the hardware are exposed by this library.
 	```
 	
 	The call to `xQueueReceive()` will block and yield the CPU to other tasks until a message is available in the queue.
-	Place it in the infinite loop in new your decode thread instead of `vTaskDelayUntil()`.
+	Place it in the infinite loop in your decode thread instead of `vTaskDelayUntil()`.
 	Nothing else is needed in this thread function for now.
 	Remove the call to `CAN_RX()` from the display function and initialise the decode thread in setup.
 	

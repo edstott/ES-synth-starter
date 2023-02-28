@@ -132,6 +132,6 @@ To adapt the code from above:
 2.	Set the DMA to copy samples from `sampleBuffer0` to the DAC at $f_s$.
 	The read pointer should be set to auto-increment.
 3.	Enable interrupts when the DMA read is complete and when it is half-complete.
-	The half-complete interrupt will be triggered when the DMA reaches the location of sampleBuffer1.
+	The half-complete interrupt will be triggered when the DMA reaches the location of `sampleBuffer1`.
 	Write an ISR that will trigger the buffer swap and release the generator thread.
 

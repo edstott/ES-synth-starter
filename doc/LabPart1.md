@@ -381,7 +381,7 @@ We will separate these two processes into different tasks by creating a thread t
 	vTaskStartScheduler();
 	```
 
-	Remove the call to scanKeysTask() from the main loop.
+	Remove the call to `scanKeysTask()` from the main loop.
 
 3.	The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
 	We can use the RTOS function `vTaskDelayUntil()` to do this — it blocks execution until a certain time has passed since the last time the function was completed.
@@ -419,7 +419,7 @@ We will separate these two processes into different tasks by creating a thread t
 
 5.	The main loop is usually left empty in FreeRTOS systems.
 	Create another thread to run the display update task (name the function `displayUpdateTask()`) with a 100ms initiation interval.
-	Remove the original, polling-based rate control implemented with `if (millis() > next) {…}` and replace it with an infinite loop and a call to `vTaskDelayUntil()`.
+	Remove the original, polling-based rate control implemented with `if (millis() > next) {…}` or `while (millis() < next);` and replace it with an infinite loop and a call to `vTaskDelayUntil()`.
 
 	Since 100ms is longer than 50ms, set the priority of the display update thread to 1 and the key scanning thread to 2 (higher priority).
 	Use a stack size of 256 words for `displayUpdateTask()`.
@@ -451,7 +451,10 @@ We will separate these two processes into different tasks by creating a thread t
 	> If a thread in your system runs out of stack the RTOS will enter an error state in an infinite loop.
 	> The LED on the microcontroller module will flash in bursts of 4 flashes.
 	> 
-	> You can reduce the stack requirement by using dynamically allocated memory with `new` or `malloc()`.
+	> You can reduce the stack requirement by placing local variables in dynamically allocated memory with `new` or `malloc()`.
 	> Dynamic memory comes from a single pool (the heap), so it is more flexible than the per-thread allocation of stack memory.
+	> Avoid allocating dynamic memory outside of the initialisation code.
+	> In some industries dynamic allocation is banned due to its runtime uncertainty.
+	> `new` and `malloc` are discouraged in general programming due to the possibility of memory leaks, but that is not a concern if memory is alloctaed only during initialisation.
 
 	 
