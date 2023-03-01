@@ -348,6 +348,16 @@ We will separate these two processes into different tasks by creating a thread t
 	```C++
 	#include <STM32FreeRTOS.h>
 	```
+	
+	Add this function call at the end of the setup function to start the RTOS scheduler:
+
+	```C++
+	vTaskStartScheduler();
+	```
+	
+	> **Warning**
+	> 
+	> Your code will not run if you inlcude `STM32FreeRTOS.h` but you don't start the scheduler.
 	 
 	Now make `scanKeysTask()` an independent thread.
 	Convert it to an infinite loop by wrapping contents of the function in a while loop:
@@ -368,18 +378,12 @@ We will separate these two processes into different tasks by creating a thread t
 	64,      		/* Stack size in words, not bytes */
 	NULL,			/* Parameter passed into the task */
 	1,			/* Task priority */
-	&scanKeysHandle );  /* Pointer to store the task handle */
+	&scanKeysHandle );	/* Pointer to store the task handle */
 	```
 
 	See the [API reference](https://www.freertos.org/a00125.html) for more information about this function call.
 	We have used a stack size of 64 words (256 bytes) for the thread.
 	The stack needs to be large enough to store all the local variables of the functions called in the thread.
-
-	Add this function call at the end of the setup function to start the RTOS scheduler:
-
-	```C++
-	vTaskStartScheduler();
-	```
 
 	Remove the call to `scanKeysTask()` from the main loop.
 
