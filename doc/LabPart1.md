@@ -357,7 +357,8 @@ We will separate these two processes into different tasks by creating a thread t
 	
 	> **Warning**
 	> 
-	> Your code will not run if you inlcude `STM32FreeRTOS.h` but you don't start the scheduler.
+	> Your code will not run if you include `STM32FreeRTOS.h` but you don't start the scheduler.
+	> Initialise everything else before starting the scheduler.
 	 
 	Now make `scanKeysTask()` an independent thread.
 	Convert it to an infinite loop by wrapping contents of the function in a while loop:
