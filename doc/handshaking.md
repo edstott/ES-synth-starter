@@ -49,6 +49,7 @@
   | 6      | Handshake output east |
   
   The OLED controls should be left high after startup.
+  The starter code does this by leaving OUT_PIN high, which means the handshake outputs are enabled by default.
   
 ### Receiving a handshake signal
   The handshake inputs are connected to a FET that's placed in one node of the key scan matrix. For example:
