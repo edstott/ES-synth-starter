@@ -305,6 +305,15 @@ Only some of the features of the hardware are exposed by this library.
 	
 	You can also attach a second keyboard module and see the messages sent from one to the other.
 	Change the argument to `CAN_INIT()` to false to disable loopback mode and allow the MCUs to receive each others’ messages.
+	
+	> **Warning**
+	> 
+	> The CAN protocol requires that each message is acknowledged.
+	> If there is no acknowledgement then the transmission will be retried, potentially forever.
+	> An incomplete tranmission will prevent new transmissions from being loaded and your code will block.
+	> 
+	> In loopback mode the MCU will receive and acknowledge its own transmissions, but if you disable loopback you need to ensure that a second keyboard is connected and programmed to receive messages.
+	> If your code stops working when you disable loopback, the likely cause is that there is nothing that is receiving and acknowledging messages.
 
 3.	Implement a receive queue.
 	The method of receiving messages is not very good because it uses polling in the display thread.
@@ -390,10 +399,7 @@ Only some of the features of the hardware are exposed by this library.
 	The call to `CAN_TX()` is not ideal either.
 	If you look in the library you’ll see that this function polls until there is space in the outgoing mailbox to place the message in.
 	So if you send a lot of messages at the same time, `scanKeysTask()` might get stuck waiting for the bus to become available.
-	It also not a thread safe function and its behaviour could be undefined if messages are being sent from two different threads.
-	
-	A queue is useful here too so that messages can be queued up for transmission.
-	Multiple threads can place messages on the queue because queue functions are thread-safe.
+	It also not a thread safe function and its behaviour could be undefined if messages are being sent from two different threads. A queue is useful here too so that messages can be queued up for transmission.
 	
 	A new transmit thread is needed to read messages out of the queue and place them in the outgoing mailbox.
 	We still want to avoid polling the hardware in the transmit thread, so we can use a semaphore to indicate when a message can be accepted.
@@ -401,6 +407,10 @@ Only some of the features of the hardware are exposed by this library.
 	The RTOS won’t schedule the thread if the semaphore is unavailable, so CPU cycles will not be wasted by polling.
 
 	![Data flow for transmitted messages](tx-flow.png)
+	
+	Here, 'transmitting thread' is any thread that wants to send a CAN message.
+	The thread sends a message by placing it in a queue, which will be completed without blocking if the queue is not full.
+	Only `scanKeysTask()` will send messages at first, but using a queue allows multiple threads to send messages because the function for putting a message on the queue is thread-safe.
 	
 	First, create another queue `msgOutQ` for the transmitted messages with a global handle.
 	The length of the queue should be 36. Then replace the call to `CAN_TX()` with the RTOS function to place an item on the queue:
@@ -434,7 +444,7 @@ Only some of the features of the hardware are exposed by this library.
 	void CAN_TX_Task (void * pvParameters) {
 		uint8_t msgOut[8];
 		while (1) {
-		xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
+			xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
 			xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
 			CAN_TX(0x123, msgOut);
 		}
