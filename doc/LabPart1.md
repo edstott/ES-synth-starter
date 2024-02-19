@@ -40,7 +40,7 @@ Get started by installing Platformio and forking the starter code
    
 ![Hello World](hello-world.jpg)
 
-> **Note**
+> [!TIP]
 > 
 > The STM32duino framework is useful because you can use familiar functions to access hardware and get access to useful libraries.
 > However, it does not include libraries for all the hardware modules and you may need to edit the framework source code to unlock advanced features, such as DMA and the full DAC resolution.
@@ -73,11 +73,14 @@ The keys and knobs on the keyboard module are connected to a key matrix, which a
 | 7	| Unused | Unused | Unused | Unused |
 
 1. Read a single row of the switch matrix
-   1. Write a function that will read the inputs from the four columns of the switch matrix (C0, C1, C2, C3) and return the four bits concatenated together as a single byte.
+   1. Write a function that will read the inputs from the four columns of the switch matrix (C0, C1, C2, C3) and return the four bits as a [C++ bitset](https://en.cppreference.com/w/cpp/utility/bitset), which is a fixed-sized vector of Booleans.
 
       ```c++
-      uint8_t readCols(){
+      #include <bitset>
       …
+      std::bitset<4> readCols(){
+      std::bitset<4> result;
+      result[0] = …
       }
       ```
 			
@@ -85,17 +88,17 @@ The keys and knobs on the keyboard module are connected to a key matrix, which a
 			This will drive R0 low and allow you to read Row 0, notes C–D♯.
 			Use the function `DigitalWrite()` to set the outputs and `DigitalRead()` to read the inputs.
 
-   2. Modify the main loop of the function to call the `readCols()` function and print the result on the OLED display at coordinates (2,20). 
+   3. Modify the main loop of the function to call the `readCols()` function and print the result on the OLED display at coordinates (2,20). 
 
       ```c++
-      uint8_t keys = readCols();
+      std::bitset<4> inputs = readCols();
       u8g2.setCursor(2,20);
-      u8g2.print(keys,HEX); 
+      u8g2.print(inputs.to_ulong(),HEX); 
       ```
 			
       You will need to replace the existing statement `u8g2.print(count++);`, which prints the iteration count
 
-   3. Upload and test your code.
+   4. Upload and test your code.
       Pressing each of the four left-most keys of the keyboard should change the number that is displayed on the screen.
 			The keys read as logic 0 when they are pressed so if you press all four of the keys the number will change to 0.
 
@@ -112,18 +115,17 @@ The keys and knobs on the keyboard module are connected to a key matrix, which a
 			
       Remove the lines that control the row select addresses and row select enable from the `readCols()` function.
 
-   2. In the `loop()` function, create an array that will store the reading from each row in the matrix
+   2. In the `loop()` function, create a bit vector that will store the state of each element in the key matrix
  
       ```c++
-      uint8_t keyArray[7];
+      std::bitset<32> inputs;
       ```
 
       Place a for loop around your call to `readCols()`.
 			This will be the key scanning loop and it should loop over the row numbers 0 to 2.
-			For each row, it should set the row select address then read the columns.
-			The result should be stored in keyArray using the row number as the array index. 
+			For each row, it should set the row select address then read the columns and copy the results into the `inputs` bitset
       
-      `keyArray` has seven elements because the key matrix has 7 rows, but we’ll only read rows 0 to 2 for now because that range covers the 12 music keys.
+      `inputs` has 32 elements because the key matrix has 32 elements, but we’ll only read elements 0 to 11 for now because that range covers the 12 music keys.
 
       The switch matrix columns take some time to switch from logic 0 to logic 1 when the row select changes due to parasitic capacitance.
 			Add a small delay inside your loop between the calls to `setRow()` and `readCols()`:
@@ -132,12 +134,10 @@ The keys and knobs on the keyboard module are connected to a key matrix, which a
       delayMicroseconds(3);
       ```
 			
-   3. Modify the display code to print the contents of keyArray indices 0, 1 and 2.
-      Format the data in hexadecimal format so that each row is represented by a single digit on the display.
-			Upload the code and you should now see a 3-digit hexadecimal number representing the state of all 12 keys.
+   3. Upload the code and you should now see a 3-digit hexadecimal number representing the state of all 12 keys.
 			Check that each key press is detected.
 			
-> **Note**
+> [!TIP]
 > 
 > The complete assignment of microcontoller pins in the synth module is as follows:
 > 
@@ -197,7 +197,7 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 
 	![keyboard](keyboard.png)
 
-2.	Add code to your main loop that will check the state of each key in `keyArray` and look up the corresponding step size in the `stepSizes` array if the key is pressed.
+2.	Add code to your main loop that will check the state of each key in `inputs` and look up the corresponding step size in the `stepSizes` array if the key is pressed.
 	Store the result in a global variable:
 	 
 	```C++
@@ -256,7 +256,19 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 	For example, a sine wave would require the calculation of a sin function.
 	Whatever the waveform, it’s best to define the function to have a midpoint of zero and then add the DC offset in the final step.
 
-4.	A timer is needed to trigger the interrupt that will call `sampleISR()`.
+
+> [!TIP]
+> **Numerically Controlled Oscillator**
+> 
+> It may seem unnecessary to use a 32-bit phase accumulator if only 8 bits are needed to create the waveform.
+> The technique is known as a numerically controlled oscillator and it allows a more accurate frequency than would be possible with an 8-bit accumulator.
+> The down sampling from the 32-bit accumulator to the 8-bit output means that each individual cycle of the waveform may have an inaccurate period, but that error is averaged out over multiple cycles.
+> The result is phase jitter, which is less obvious than a continuous frequency error.
+> 
+> If you try to generate very high tones you will hear aliased frequency components arising from the periodicity of the jitter, particularly for discontinuous waveforms like the sawtooth.
+> This is a limitation of the 22kHz sample rate.
+
+5.	A timer is needed to trigger the interrupt that will call `sampleISR()`.
 	Create a timer in the setup function using the stm32duino library class `HardwareTimer`:
 
 	```C++
@@ -274,23 +286,13 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 	 
 	See the [documentation for the timer library](https://github.com/stm32duino/wiki/wiki/HardwareTimer-library) for more information.
 	
-5.	Test your code.
+6.	Test your code.
 	You should hear a note from the speaker when you press each key.
 	You could test that the notes are correct with a guitar tuner app if you like.
 	 
-	> **Warning**
-	> 
-	>  Do not use headphones until you have tested the loudness with the headphones away from your ears.
-
-	> **Note**: Numerically Controlled Oscillator
-	> 
-	> It may seem unnecessary to use a 32-bit phase accumulator if only 8 bits are needed to create the waveform.
-	> The technique is known as a numerically controlled oscillator and it allows a more accurate frequency than would be possible with an 8-bit accumulator.
-	> The down sampling from the 32-bit accumulator to the 8-bit output means that each individual cycle of the waveform may have an inaccurate period, but that error is averaged out over multiple cycles.
-	> The result is phase jitter, which is less obvious than a continuous frequency error.
-	> 
-	> If you try to generate very high tones you will hear aliased frequency components arising from the periodicity of the jitter, particularly for discontinuous waveforms like the sawtooth.
-	> This is a limitation of the 22kHz sample rate.
+> [!CAUTION]
+> 
+>  Do not use headphones until you have tested the loudness with the headphones away from your ears.
 
 6.	Even though the code works, there is a possible synchronisation bug.
 	The `currentStepSize` variable could be read in `sampleISR()` when it has been partially modified in the main loop.
@@ -311,9 +313,12 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 	This function (actually a compile macro) stores `localCurrentStepSize` in `currentStepSize` as an atomic operation.
 	The parameter `__ATOMIC_RELAXED` indicates that we need an atomic store, but we’re not concerned about the ordering of other instructions that don’t use the two variables in question.
 	Refer to the documentation for more information about this parameter.
+ 
+	A complementary call to `__atomic_load_n()` is not functionally necessary because the variable is read in an ISR that cannot be interrupted. However, including the atomic access ensures the programmers intent is preserved and guards against errors if a higher-priority interrupt is introduced in future.
 
-	A complementary call to `__atomic_load_n()` would be necessary if `currentStepSize` was read in another thread.
-	However, since the variable is read in an ISR, an atomic operation is unneeded because the ISR cannot be interrupted by anything else that accesses the variable.
+	```C++
+	__atomic_load_n(&currentStepSize, &localCurrentStepSize, __ATOMIC_RELAXED);
+	```
 
 	See the [compiler documentation](https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html) for more information about built-in atomic operations.
 
@@ -322,6 +327,14 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 Currently, the keys are read once every execution of the main loop.
 The main loop is also used to update the display, which is not ideal because it forces these tasks to have the same initiation interval.
 We will separate these two processes into different tasks by creating a thread to run the key scanning task.
+
+1. Create a global struct that will store system state that is used in more than one thread:
+	```C++
+	struct {
+ 	std::bitset<32> inputs;  
+	} sysState;
+	```
+ 	For now, the struct only contains the input bitset. The only other global variable is `currentStepSize`, but keep that apart from `sysState` because it is accessed by an ISR and the synchronisation method will be different.
 
 1.	Move all your code for scanning the keyboard into a single function:
 
@@ -333,10 +346,8 @@ We will separate these two processes into different tasks by creating a thread t
 
   	The function should do the following:
 	- Loop through the rows of the key matrix
-	- Read the columns of the matrix and store the result in `keyArray`
+	- Read the columns of the matrix and store the result in `sysState.inputs`
 	- Look up the phase step size for the key that is pressed and update `currentStepSize`
-
-	You will need to make `keyArray` a volatile, global variable so that it can be accessed by both `scanKeysTask()` and the main loop.
 
 	Test your code by calling `scanKeysTask()` in the main loop.
 	The parameter `pvParameters` will be used by the thread initialiser — just set it to NULL in your call.
@@ -354,11 +365,6 @@ We will separate these two processes into different tasks by creating a thread t
 	```C++
 	vTaskStartScheduler();
 	```
-	
-	> **Warning**
-	> 
-	> Your code will not run if you include `STM32FreeRTOS.h` but you don't start the scheduler.
-	> Initialise everything else before starting the scheduler.
 	 
 	Now make `scanKeysTask()` an independent thread.
 	Convert it to an infinite loop by wrapping contents of the function in a while loop:
@@ -388,7 +394,13 @@ We will separate these two processes into different tasks by creating a thread t
 
 	Remove the call to `scanKeysTask()` from the main loop.
 
-3.	The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
+	
+> [!IMPORTANT]
+> 
+> Your code will not run if you include `STM32FreeRTOS.h` but you don't start the scheduler.
+> Initialise everything else before starting the scheduler.
+
+4.	The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
 	We can use the RTOS function `vTaskDelayUntil()` to do this — it blocks execution until a certain time has passed since the last time the function was completed.
 
 	Declare two local variables in `scanKeysTask()`, before the loop:
@@ -416,13 +428,13 @@ We will separate these two processes into different tasks by creating a thread t
 	When the required time has passed, `xLastWakeTime` is updated by the RTOS ready for the next iteration.
 	See the [API reference](https://www.freertos.org/vtaskdelayuntil.html) for more information about this function call.
 
-4.	Test your code.
+5.	Test your code.
 	It should behave as before.
-	You may have noticed another potential synchronisation bug with the `keyArray` array.
-	`keyArray` cannot be treated as a simple atomic variable because it is a multi-word array.
+	You may have noticed another potential synchronisation bug with the `sysState` struct.
+	`sysState` cannot be treated as a simple atomic variable because it interacting with it may take multiple memory accesses, for example in the member functions of bitset.
 	We will solve the problem in the next section using a mutex.
 
-5.	The main loop is usually left empty in FreeRTOS systems.
+6.	The main loop is usually left empty in FreeRTOS systems.
 	Create another thread to run the display update task (name the function `displayUpdateTask()`) with a 100ms initiation interval.
 	Remove the original, polling-based rate control implemented with `if (millis() > next) {…}` or `while (millis() < next);` and replace it with an infinite loop and a call to `vTaskDelayUntil()`.
 
@@ -435,31 +447,32 @@ We will separate these two processes into different tasks by creating a thread t
 	Therefore, the LED is a useful indicator that the code meets its real time requirements.
 	As you add functionality, look out for the LED flash rate slowing, especially under heavy workload such as polyphony with the maximum number of simultaneous notes.
 
-	> **Note**: How much stack?
-	> 
-	> 
-	> The stack stores the arguments, local variables and return pointers for functions that are called.
-	> Each thread has its own stack.
-	> The total stack required depends on the worst-case combination of function calls.
-	> Recursive functions are a bad idea when the stack size is fixed because the worst-case stack requirement depends on the data and it can be hard to determine.
-	> 
-	> There are two methods to determine the amount of stack to allocate to a thread:
-	> 1. Examine the compiler output to find the stack footprint of every function.
-	>    Then, add together the combinations of functions that could all be in progress at the same time inside one thread.
-	>    The use of libraries makes this process more difficult because they might have their own chains of function calls that are hard to inspect.
-	>    The Inspect view in Platformio can be used to explore memory usage in your project.
-	> 2. Find it at runtime.
-	>    The FreeRTOS function `uxTaskGetStackHighWaterMark()` returns the largest amount of stack that a thread has ever needed.
-	>    You can allocate a large stack at first and then optimise when the code is working.
-	>    You need to ensure that all the code has been exercised before you report the stack high water mark.
-	> 
-	> If a thread in your system runs out of stack the RTOS will enter an error state in an infinite loop.
-	> The LED on the microcontroller module will flash in bursts of 4 flashes.
-	> 
-	> You can reduce the stack requirement by placing local variables in dynamically allocated memory with `new` or `malloc()`.
-	> Dynamic memory comes from a single pool (the heap), so it is more flexible than the per-thread allocation of stack memory.
-	> Avoid allocating dynamic memory outside of the initialisation code.
-	> In some industries dynamic allocation is banned due to its runtime uncertainty.
-	> `new` and `malloc` are discouraged in general programming due to the possibility of memory leaks, but that is not a concern if memory is alloctaed only during initialisation.
+> [!TIP]
+> **How much stack?**
+> 
+> 
+> The stack stores the arguments, local variables and return pointers for functions that are called.
+> Each thread has its own stack.
+> The total stack required depends on the worst-case combination of function calls.
+> Recursive functions are a bad idea when the stack size is fixed because the worst-case stack requirement depends on the data and it can be hard to determine.
+> 
+> There are two methods to determine the amount of stack to allocate to a thread:
+> 1. Examine the compiler output to find the stack footprint of every function.
+>    Then, add together the combinations of functions that could all be in progress at the same time inside one thread.
+>    The use of libraries makes this process more difficult because they might have their own chains of function calls that are hard to inspect.
+>    The Inspect view in Platformio can be used to explore memory usage in your project.
+> 2. Find it at runtime.
+>    The FreeRTOS function `uxTaskGetStackHighWaterMark()` returns the largest amount of stack that a thread has ever needed.
+>    You can allocate a large stack at first and then optimise when the code is working.
+>    You need to ensure that all the code has been exercised before you report the stack high water mark.
+> 
+> If a thread in your system runs out of stack the RTOS will enter an error state in an infinite loop.
+> The LED on the microcontroller module will flash in bursts of 4 flashes.
+> 
+> You can reduce the stack requirement by placing local variables in dynamically allocated memory with `new`, `malloc()` or higher-level methods of creating dynamic memory objects.
+> Dynamic memory comes from a single pool (the heap), so it is more flexible than the per-thread allocation of stack memory.
+> Avoid allocating dynamic memory outside of the initialisation code.
+> In some industries dynamic allocation is banned due to its runtime uncertainty.
+> Raw `new` and `malloc` are discouraged in general programming due to the possibility of memory leaks, but that is not a concern if memory is allocated only during initialisation and never deallocated.
 
 	 
