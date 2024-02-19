@@ -10,14 +10,17 @@ This time we will develop the system further and complete the remaining core goa
 
 ### 1. Add a mutex
 Part 1 of the lab notes left a synchronisation bug.
-The array keyArray is now a global variable and it is accessed by both the main loop and `scanKeysTask()`.
-It cannot be accessed atomically because it is an array of multiple bytes — it requires multiple operations to read and write.
-Since all the accesses to the array are from threads, not interrupts, it can be protected by a mutex.
+The struct `sysState` is a global object and it is accessed by both the main loop and `scanKeysTask()`.
+It cannot be accessed atomically because it requires multiple operations to read and write.
+Since all the accesses to the object are from threads, not interrupts, it can be protected by a mutex.
 
-1.	Declare a global handle for a FreeRTOS mutex that can be used by different threads to access the mutex object:
+1.	Add a handle for a FreeRTOS mutex to `sysState`, which can be used by different threads to access the mutex object:
 
 	```c++
-	SemaphoreHandle_t keyArrayMutex;
+	struct {
+	std::bitset<32> inputs,
+	SemaphoreHandle_t mutex;  
+	} sysState;
 	```
 	
 	FreeRTOS uses the same data structure for semaphores and mutexes, so the handle type and function names overlap.
@@ -32,49 +35,49 @@ Since all the accesses to the array are from threads, not interrupts, it can be 
 	Create the mutex and assign its handle in the setup function, before the scheduler is started:
 	
 	```c++
-	keyArrayMutex = xSemaphoreCreateMutex();
+	sysState.mutex = xSemaphoreCreateMutex();
 	```
 	
 	The reference for this function is here: https://www.freertos.org/CreateMutex.html
 	
-2.	Now you can take the mutex while keyArray is accessed using the appropriate functions:
+2.	Now you can take the mutex while the `sysState` object is accessed using the appropriate functions:
 	
 	```c++
-	xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
-	… //Access keyArray here
-	xSemaphoreGive(keyArrayMutex);
+	xSemaphoreTake(sysState.mutex, portMAX_DELAY);
+	… //Access sysStatehere
+	xSemaphoreGive(sysState.mutex);
 	```
 	
-	Guard accesses to keyArray in both `scanKeysTask()` and `displayUpdateTask()`.
+	Guard accesses to `sysState` in both `scanKeysTask()` and `displayUpdateTask()`.
 	The parameter `portMAX_DELAY` causes `xSemaphoreTake()` to wait indefinitely for the mutex to become unlocked.
 	You can use a finite time, expressed in scheduler ticks, but then you would also need to test if `xSemaphoreTake()` was successful and deal with a failure appropriately. 
 
 3.	Test your code. It should work as before.
 
-	> **Note**: Using mutexes to synchronise arrays
-	>
-	> You have a choice of how often to lock the mutex while different elements of keyArray are accessed.
-	> You could take the mutex separately when every element is read or written.
-	> That would mean the array as a whole is not synchronised — the display thread could read part of the array from the latest scan of the key matrix and part from the previous scan.
-	> Maybe that wouldn’t be a problem just to display the contents but in other applications this desynchronisation could very bad.
-	> 
-	> An alternative is to lock the mutex once while the entire array is accessed.
-	> However, that means the mutex could be locked for a relatively long time, and task prioritisation could be affected.
-	> For example, the key scan loop contains delays to allow the external wiring to settle and the mutex would be locked all this time.
-	> 
-	> A better approach may be to create local copies of the array in each function that accesses it.
-	> You can use the C function `memcpy()` or C++ `std::copy` for this purpose.
-	> Then the mutex would only be locked while the copy is taking place, and not the processing.
-	> The downside of this method is that extra memory and CPU execution time are required to make the copies.
-	> It would be impractical for large arrays.
-	> 
-	> The correct approach will depend on the application.
-	> There will always be complexity when concurrent tasks are required to spend a significant portion of their execution time accessing shared data.
+> [!TIP]
+> **Using mutexes to guard objects**
+>
+> You have a choice of how often to lock the mutex while different elements of `sysState.inputs` are accessed.
+> You could take the mutex separately when every element is read or written.
+> That would mean the object as a whole is not synchronised — the display thread could read the inputs when they have been partially updated during a scan of the key matrix. Maybe that wouldn’t be a problem just to display the contents but in other applications this desynchronisation could very bad. Another downside of this approach is that each lock and unlock are RTOS calls and they impose a computation overhead.
+> 
+> An alternative is to lock the mutex once while the entire array is accessed.
+> However, that means the mutex could be locked for a relatively long time, and task prioritisation could be affected.
+> For example, the key scan loop contains delays to allow the external wiring to settle and the mutex would be locked all this time.
+> 
+> A better approach may be to create local copies of the array in each function that accesses it.
+> You can use the C function `memcpy()` or C++ `std::copy` for this purpose.
+> Then the mutex would only be locked while the copy is taking place, and not the processing.
+> The downside of this method is that extra memory and CPU execution time are required to make the copies.
+> It would be impractical for large arrays.
+> 
+> The correct approach will depend on the application.
+> There will always be complexity when concurrent tasks are required to spend a significant portion of their execution time accessing shared data.
 
 ### 2. Knobs
 
 The knobs generate a quadrature signal as they rotate.
-We can find the amount of rotation by counting the state changes and we can find the direction of rotation from the ordering of state changes.
+You can find the amount of rotation by counting the state changes and you can find the direction of rotation from the ordering of state changes.
 
 ![Quadrature signal generated by rotating knobs](quad.svg)
 
@@ -102,7 +105,7 @@ We can determine if a rotation has happened by comparing the current state to th
 
 Note that the rotation variable is only incremented or decremented when input A toggles to give one count per detent of the knob.
 
-1.	Decode knob 3 (the right-hand knob) into a rotation variable by comparing the current state and previous state of the appropriate bits in the key matrix.
+1.	Decode knob 3 (the right-hand knob) into a rotation variable by comparing the current state and previous state of the appropriate bits in `sysState.inputs`.
 	You will need to extend your key matrix scan to include row 3.
 	The A and B signals for knob 3 can be read in columns 0 and 1 of row 3.
 	The decoding process should happen every time the key matrix is scanned so include it in `scanKeysTask()`.
@@ -111,10 +114,10 @@ Note that the rotation variable is only incremented or decremented when input A 
 	Assign the current state to the previous state once decoding is complete so that it is ready to use as the previous state in the next iteration. 
 
 	The result of the knob decode is a rotation variable that keeps track of the knob position.
-	Create this variable as a global variable so it can be accessed by other threads.
+	Add this variable to `sysState` so it can be accessed by other threads.
 	Add a printout of the variable to your display and check that you can count rotation of the knob.
 	
-	You can protect access to this variable with `keyArrayMutex` since it will be accessed at the same time as `keyArray`.
+	Protect access to this variable with `sysState.mutex`.
 	
 2.	You will probably notice that the knob decode doesn’t work very well when you turn the knob quickly.
 	The problem is the key matrix isn’t scanned quickly enough to detect the transient states, when the inputs {B,A} are briefly at 01 or 10 between detents of the knob.
@@ -134,15 +137,14 @@ Note that the rotation variable is only incremented or decremented when input A 
 	| 3 | 01 | 11 |  | Normal transition |
 	| 4 | 11 | 00 | +1 | Missed state, assume same sign as before |
 
-	> **Note**: Knob accuracy
-	>
-	> It’s not ideal to use a high sample rate to detect the knob movements accurately because it increases CPU utilisation.
-	> Normally you would connect incremental encoders directly to MCU pins so you can generate interrupts when the inputs change.
-	> Unfortunately, there are not enough pins on the microcontroller module for this.
-	> 
-	> To avoid this problem, the synthesiser module has an additional microcontroller which can be dedicated to decoding the knobs
-	> However, there is not yet a configuration flow that allows you to program this microcontroller.
-	> So don’t worry about trying to optimise the knob decode for now — limitations on knob rotation speed will not be penalised in coursework marking. 
+  > [!NOTE]
+  > **Knob accuracy**
+  >
+  > It’s not ideal to use a high sample rate to detect the knob movements accurately because it increases CPU utilisation.
+  > Normally you would connect incremental encoders directly to MCU pins so you can generate interrupts when the inputs change.
+  > Unfortunately, there are not enough pins on the microcontroller module for this.
+  > 
+  > To fix this problem, V2.1 of the synthesiser module contains an I<sup>2</sup>C GPIO expander device with interrrupt capability that can be used to read the knobs instead of the input matrix. You can try one if you like, but don't worry about optimising knob input on V1.1 hardware.
 
 4.	The knob can be used to implement a simple volume control.
 	First, add limits to your knob decoder so the maximum rotation can be 8 and the minimum can be 0.
@@ -162,31 +164,32 @@ Note that the rotation variable is only incremented or decremented when input A 
 	Test the volume control.
 	You should find that steps in the volume control are approximately consistent in the perceived loudness.
 
-5.	The mutex `keyArrayMutex`, which you used to protect the variable knob3Rotation, cannot be locked by `sampleISR()` because it is an interrupt.
-	Maintain correct data synchronisation by changing the modification to knob3Rotation in `scanKeysTask()` to an atomic access.
-	Make sure there is no way the ISR can read a rotation value that’s temporarily outside the permitted bounds, for example if the rotation is incremented then checked against the maximum.
+5.	The mutex `sysState.mutex`, which you used to protect your knob rotation variable, cannot be locked by `sampleISR()` because it is an interrupt.
+	Maintain correct data synchronisation by using atomic accesses to access the rotation variable, instead of locking the mutex.
+Atomic access is appropriate since the variable is a single word, but you must ensure there is no way the ISR can read a rotation value that’s temporarily outside the permitted bounds, for example if the rotation is incremented then checked against the maximum.
 
-6.	(Advanced) The code will get messy if the knob decoder is replicated for the three other knobs.
-	Implement a knob class with methods that allow you to:
-	-	Update the rotation value using the latest state of the key matrix
+7.	(Advanced) The code will get messy if the knob decoder is replicated for the three other knobs.
+	Implement a knob class that stores the state of the knob and provides methods to:
+	-	Update the rotation value using the latest state of the quadrature inputs
 	-	Set upper and lower limits
 	-	Read the current rotation value
 
-	Make the class thread safe, meaning that all public methods behave as reenterant functions and they can be called from concurrent tasks without need needing additional synchronisation locks.
+	Make the class thread safe, meaning that all public methods behave as reenterant functions and they can be called from concurrent tasks without need needing additional synchronisation locks outside the member functions.
 	
-	> **Note**: Global variables and synchronisation in embedded code
-	> 
-	> Embedded programming in C or C++ tends to create numerous global variables, which are [discouraged in general programming](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#i2-avoid-non-const-global-variables) because the global scope makes it hard to follow where variables are used.
-	> They arise in embedded code because threads don't terminate and instead must interact with other tasks as and when external events or timers require processing.
-	> Furthermore, interrupts can occur at any point and they cannot accept parameters or generate return values like normal functions.
-	> 
-	> Passing data between parallel tasks requires synchronisation (mutex, queue, critical section etc.) and its easy to introduce bugs when there are many global variables, each with their own method of synchronisation.
-	> Synchronisation itself introduces additional global objects including semaphore and queue objects.
-	> Consider organising and accessing your shared data in a way that will reduce the occurance of bugs, for example:
-	> - Group global variables into structs or singeton classes, so fewer objects are shared
-	> - Define all global variables in a single source file and declare them as required in other source  files with `extern`
-	> - Create access methods or functions that read, write or update shared objects so that you don't need to replicate synchronisation code in different tasks
-	> - Use C++ RAII (resource acquisition is initialization) to obtain mutex locks automatically in a local scope
+  > [!TIP]
+  > Global variables and synchronisation in embedded code
+  > 
+  > Embedded programming in C or C++ tends to create numerous global variables, which are [discouraged in general programming](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#i2-avoid-non-const-global-variables) because the global scope makes it hard to follow where variables are used.
+  > They arise in embedded code because threads don't terminate and instead must interact with other tasks as and when external events or timers require processing.
+  > Furthermore, interrupts can occur at any point and they cannot accept parameters or generate return values like normal functions.
+  > 
+  > Passing data between parallel tasks requires synchronisation (mutex, queue, critical section etc.) and its easy to introduce bugs when there are many global variables, each with their own method of synchronisation.
+  > Synchronisation itself introduces additional global objects including semaphore and queue objects.
+  > Consider organising and accessing your shared data in a way that will reduce the occurance of bugs, for example:
+  > - Group global variables into structs or singeton classes, so fewer objects are shared
+  > - Define all global variables in a single source file and declare them as required in other source files with `extern`
+  > - Create access methods or functions that read, write or update shared objects so that you don't need to replicate synchronisation code in different tasks
+  > - Use C++ RAII (resource acquisition is initialization) to obtain mutex locks automatically in a local scope
 
 ### 2. CAN bus communication
 
