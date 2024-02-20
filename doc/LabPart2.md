@@ -309,14 +309,14 @@ Only some of the features of the hardware are exposed by this library.
 	You can also attach a second keyboard module and see the messages sent from one to the other.
 	Change the argument to `CAN_INIT()` to false to disable loopback mode and allow the MCUs to receive each others’ messages.
 	
-	> **Warning**
-	> 
-	> The CAN protocol requires that each message is acknowledged.
-	> If there is no acknowledgement then the transmission will be retried, potentially forever.
-	> An incomplete tranmission will prevent new transmissions from being loaded and your code will block.
-	> 
-	> In loopback mode the MCU will receive and acknowledge its own transmissions, but if you disable loopback you need to ensure that a second keyboard is connected and programmed to receive messages.
-	> If your code stops working when you disable loopback, the likely cause is that there is nothing that is receiving and acknowledging messages.
+  > [!IMPORTANT] 
+  > 
+  > The CAN protocol requires that each message is acknowledged.
+  > If there is no acknowledgement then the transmission will be retried, potentially forever.
+  > An incomplete tranmission will prevent new transmissions from being loaded and your code will block.
+  > 
+  > In loopback mode the MCU will receive and acknowledge its own transmissions, but if you disable loopback you need to ensure that a second keyboard is connected and programmed to receive messages.
+  > If your code stops working when you disable loopback, the likely cause is that nothing is receiving and acknowledging messages.
 
 3.	Implement a receive queue.
 	The method of receiving messages is not very good because it uses polling in the display thread.
@@ -396,9 +396,9 @@ Only some of the features of the hardware are exposed by this library.
 		
 	If you want to keep the message display on the display, you should protect `RX_Message` with a mutex.
 	You can’t lock the mutex while the decode thread blocks on `xQueueReceive()` due to the risk of deadlock, so you’ll need to first place the message in a local array, then copy it to the global array after taking the mutex.
-	Use this same mutex to protect access to `RX_Message` when the display is updated.
+	Use this same mutex to protect access to `RX_Message` when the display is updated. `RX_Message` could be a member of `sysState`.
 
-4.	Add a transmit queue.
+5.	Add a transmit queue.
 	The call to `CAN_TX()` is not ideal either.
 	If you look in the library you’ll see that this function polls until there is space in the outgoing mailbox to place the message in.
 	So if you send a lot of messages at the same time, `scanKeysTask()` might get stuck waiting for the bus to become available.
@@ -441,7 +441,7 @@ Only some of the features of the hardware are exposed by this library.
 	The maximum count of the semaphore is also three, so it can’t accumulate a count greater than the number of mailboxes.
 
 	Create the transmit thread and initialise it as usual.
-	Its infinite loop will have two blocking statements because it must obtain a message from the queue and take the semaphore before sending the message:
+	Its infinite loop will have two blocking statements because it must obtain a message from the queue *and* take the semaphore before sending the message:
 	
 	```c++
 	void CAN_TX_Task (void * pvParameters) {
@@ -470,7 +470,8 @@ Only some of the features of the hardware are exposed by this library.
 
 	Check that your messages are still transmitted.
 
-	> **Note**: Initiation intervals of the communication tasks
+  > [!TIP]
+  > **Initiation intervals of the communication tasks**
 	>
 	> The message send task waits for data in a queue, not a fixed time interval, so what is its initiation interval for analysis purposes?
 	> We need to look at how often items are being placed on the queue, which happens in `scanKeysTask()`.
@@ -486,7 +487,7 @@ Only some of the features of the hardware are exposed by this library.
 	> The minimum transmission time of the CAN frames is 0.7ms so, in the worst case, the queue could fill in 25.2ms.
 	> That means the analysis for this task should be based on 36 executions with an initiation interval of 25.2ms.
 
-5.	Synthesiser modules should be configurable as senders or receivers.
+6.	Synthesiser modules should be configurable as senders or receivers.
 	Senders will send messages when keys are pressed or released, but they will not generate sound themselves.
 	Receivers will not send messages, but they will play notes that are generated from other modules as well as their local keys.
 	
@@ -546,7 +547,8 @@ Here we will adopt a more manual method because we need to ensure that we find t
 	Use preprocessor directives to make all the test setup reversible.
 	Then you will be able to easily switch between a normal build and a test build so you can remeasure execution times if you make any changes.
 
-	> **Note**: FreeRTOS Run Time Statistics
+  > [!TIP]
+  > **FreeRTOS Run Time Statistics**
 	>
 	> [FreeRTOS can provide some information on execution time and utilisation](https://www.freertos.org/rtos-run-time-stats.html) without the need to isolate tasks, but some setting up is required.
 	> You need edit `FreeRTOSConfig.h` in the FreeRTOS library to define a macro that accesses the timer in your system.
@@ -566,7 +568,8 @@ Here we will adopt a more manual method because we need to ensure that we find t
 4.	Execution times should be used in conjunction with initiation intervals to complete a critical instant analysis of your system.
 	Refer to the lectures for details.
 
-> **Note**: Next Steps
+> [!NOTE]
+> **Next Steps**
 > 
 > These lab instructions have worked through the implementation of the coursework core features using real-time programming techniques that allow concurrent task execution and thread-safe data sharing.
 > 
