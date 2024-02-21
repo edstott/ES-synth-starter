@@ -247,21 +247,7 @@ Only some of the features of the hardware are exposed by this library.
 2.	Send and Receive with polling
 
 	Begin by using polling loops to control send and receive.
-	The STM32duino build of the HAL doesn’t build the CAN module by default, so enable it by opening the file:
-	
-	```
-	~\.platformio\packages\framework-arduinoststm32\cores\arduino\stm32\stm32yyxx_hal_conf.h
-	```
-	
-	and add the line:
-	
-	```c++
-	#define HAL_CAN_MODULE_ENABLED
-	```
-	
-	below the group of similar lines. `~` is your user home directory.
-	
-	Also include the provided CAN library in your main.cpp:
+	Include the provided CAN library in your main.cpp:
 	
 	```c++
 	#include <ES_CAN.h>
