@@ -1,3 +1,6 @@
+/*  This file redefines the clock configuration function that is called by the HAL on startup.
+    The function differs from the default for the NUCLEO-L432KC module to support V2.x StackSynth modules */
+
 #include "stm32_def.h"
 #include "stm32l4xx_hal_rcc.h"
 #include "stm32l4xx_hal_flash.h"
