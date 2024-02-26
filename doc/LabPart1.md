@@ -398,8 +398,8 @@ We will separate these two processes into different tasks by creating a thread t
 	
 > [!IMPORTANT]
 > 
-> Your code will not run if you include `STM32FreeRTOS.h` but you don't start the scheduler.
-> Initialise everything else before starting the scheduler.
+> Your code will not run if you include STM32duino FreeRTOS as a library dependency but you don't start the scheduler.
+> Initialise everything else before starting the scheduler with `vTaskStartScheduler()`.
 
 4.	The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
 	We can use the RTOS function `vTaskDelayUntil()` to do this — it blocks execution until a certain time has passed since the last time the function was completed.
