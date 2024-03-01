@@ -2,10 +2,7 @@
 ## Generating audio samples with a double buffer
 
 An audio synthesiser needs to generate a new sample every $1/f_s$ seconds.
-The sample frequency is much higher than an RTOS scheduler tick rate, so there remain two options for updating the DAC output:
-
-1. Use an interrupt which is triggered off a timer with a period of $1/f_s$. This is the method used in the lab notes
-2. Set up a DMA module to automatically copy a new sample from memory to the DAC at the required interval
+The sample frequency is much higher than an RTOS scheduler tick rate, so the lab notes use an interrupt which is triggered off a timer with a period of $1/f_s$.
 
 Generating an audio sample can be computationally expensive, especially if convolution is used to implement a filter, or if several waveforms are being summed together.
 Doing this computation on demand, once per sample period causes a large proportion of the CPU workload to have a high priority.
@@ -17,7 +14,7 @@ A large ISR workload can cause problems, such as:
   The result is often a proliferation of critical sections in thread functions, which are a very coarse method of synchronisation.
   
 A common solution is to calculate samples in batches in a lower-priority thread and use the interrupt just to copy the sample to the DAC.
-This is also the best approach when using the DMA, since the DMA can auto-increment its read pointer and copy successive bytes from memory.
+You can also omit the interrupt entirely and set up the DMA to copy samples - the DMA has auto-increment and timer features for exactly this kind of application.
 
 Whether the copy to DAC is done by interrupt or DMA, there is an intermediate storage of samples in memory that is shared between two tasks: sample generation and copy to DAC.
 That means it requires synchronisation.
@@ -35,22 +32,22 @@ Synchronisation is achieved by ensuring that the pointer swap happens atomically
 
 ### Coursework Implementation with ISR
 
-Create an array that will hold the samples, with a pointer to the half-way point and a flag that will define which half is being written:
+Create two arrays that will hold the samples, with a flag that will define which half is being written:
 
 ```c++
-uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
-uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
+uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE/2];
+uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE/2];
 volatile bool writeBuffer1 = false;
 ```
 
 The ISR will copy one sample to the DAC and increment a write counter.
 The flag is used to determine which buffer to read from.
-When the pointer reaches `SAMPLE_BUFFER_SIZE`, the counter will reset to zero and the pointers will swap:
+When the pointer reaches `SAMPLE_BUFFER_SIZE/2`, the counter will reset to zero and the pointers will swap:
 
 ```c++
 static uint32_t readCtr = 0;
 
-if (readCtr == SAMPLE_BUFFER_SIZE) {
+if (readCtr == SAMPLE_BUFFER_SIZE/2) {
 	readCtr = 0;
 	writeBuffer1 = !writeBuffer1;
 	xSemaphoreGiveFromISR(sampleBufferSemaphore, NULL);
@@ -76,7 +73,7 @@ The main loop of that thread will look something like this:
 ```c++
 while(1){
 	xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
-	for (uint32_t writeCtr = 0; writeCtr < SAMPLE_BUFFER_SIZE; writeCtr++) {
+	for (uint32_t writeCtr = 0; writeCtr < SAMPLE_BUFFER_SIZE/2; writeCtr++) {
 		uint32_t Vout = … //Calculate one sample
 		if (writeBuffer1)
 			sampleBuffer1[writeCtr] = Vout + 128;
@@ -87,7 +84,7 @@ while(1){
 ```
 
 The semaphore is given when it is created so that the thread doesn't block on its first loop and the first batch of samples is generated straight away.
-You may want to initialise the sample buffers with midpoint values (128) to send to the output while the first batch is being generated.
+You may want to initialise the sample buffers with midpoint values (e.g. 128) to send to the output while the first batch is being generated.
 	
 ### Buffer size
 The size of the sample buffer affects the priority of the sample generation thread and the latency between generating a sample and it appearing on the output.
@@ -126,8 +123,8 @@ To adapt the code from above:
 1.	Make the sample buffers contiguous in memory:
 	
 	```c++
-	uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE*2];
-	uint8_t sampleBuffer1[] = sampleBuffer0 + SAMPLE_BUFFER_SIZE;
+	uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
+	uint8_t sampleBuffer1[] = sampleBuffer0 + SAMPLE_BUFFER_SIZE/2;
 	```
 2.	Set the DMA to copy samples from `sampleBuffer0` to the DAC at $f_s$.
 	The read pointer should be set to auto-increment.
