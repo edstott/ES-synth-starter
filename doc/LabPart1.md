@@ -37,6 +37,9 @@ Get started by installing Platformio and forking the starter code
 7. The ‘Hello World’ message should appear on the OLED display.
 8. Open the serial monitor using the 🔌 button on the toolbar.
    Press the reset button on the synth (SW19) or the MCU module (B1) and you will see the `Hello World’ message on the terminal
+
+> [!WARNING]  
+> The first compilation may take some time as Platformio downloads the necessary packages. In Windows there is an additional delay as the new files are checked for viruses. Do not abort the process because the package installation may be incomplete and Platformio cannot automatically repair broken packagaes. If compilation fails due to missing files, you can delete the appropriate package directory from `<your home directory\.platformio\packages` and Platformio will it when you next compile.
    
 ![Hello World](hello-world.jpg)
 
