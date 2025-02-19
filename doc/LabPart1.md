@@ -270,19 +270,18 @@ $$S=\frac{2^{32}f}{f_\mathrm{s}}$$
 > This is a limitation of the 22kHz sample rate.
 
 5.	A timer is needed to trigger the interrupt that will call `sampleISR()`.
-	Create a timer in the setup function using the stm32duino library class `HardwareTimer`:
+	Create a global timer object using the stm32duino library class `HardwareTimer` and the hardware timer instance `TIM1`:
 
 	```C++
-	TIM_TypeDef *Instance = TIM1;
-	HardwareTimer *sampleTimer = new HardwareTimer(Instance);
+	HardwareTimer sampleTimer(TIM1);
 	```
 
-	The timer is configured by setting the period, attaching the ISR and starting the timer, also in the setup function:
+	The timer is configured by setting the period, attaching the ISR and starting the timer in the setup function:
 
 	```C++
-	sampleTimer->setOverflow(22000, HERTZ_FORMAT);
-	sampleTimer->attachInterrupt(sampleISR);
-	sampleTimer->resume();
+	sampleTimer.setOverflow(22000, HERTZ_FORMAT);
+	sampleTimer.ttachInterrupt(sampleISR);
+	sampleTimer.resume();
 	```
 	 
 	See the [documentation for the timer library](https://github.com/stm32duino/wiki/wiki/HardwareTimer-library) for more information.
