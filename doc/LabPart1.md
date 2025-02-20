@@ -28,6 +28,10 @@ The overall development stack looks like this:
 ![Synthesiser development stack](synth-stack.png)
 
 Get started by installing Platformio and forking the starter code
+
+> [!WARNING]  
+> The first time you open or compile a project in Platformio you may see some tasks that take a long time as the necessary compiler and libraries are installed. Windows seems to be especially slow as all the new files are automatically checked for malware. Do not abort anything because the package installation may be incomplete and Platformio cannot automatically repair broken packages. If compilation fails due to missing files, you can delete the appropriate package directory from `<your home directory\.platformio\packages` and Platformio will install it when you next compile.
+
 1. Install Visual Studio Code, if you don’t have it already, and add Platformio from the website, or by searching for it in the VS Code extensions marketplace
 2. Fork the starter code from GitHub. You can use the GitHub extension for VS Code, use git from the command line or any other client, or download the zipped project files from GitHub. Open the project folder in VS Code
 3. Switch to the Platformio Home tab with the 🏠 button on the bottom toolbar and select the libraries view. Search for the U8g2 display driver library, select the latest version and add it to the project.
@@ -37,9 +41,6 @@ Get started by installing Platformio and forking the starter code
 7. The ‘Hello World’ message should appear on the OLED display.
 8. Open the serial monitor using the 🔌 button on the toolbar.
    Press the reset button on the synth (SW19) or the MCU module (B1) and you will see the `Hello World’ message on the terminal
-
-> [!WARNING]  
-> The first time you open or compile a project in Platformio you may see some tasks that take a long time. In Windows there is an additional delay as the new files are checked for viruses. Do not abort anything because the package installation may be incomplete and Platformio cannot automatically repair broken packagaes. If compilation fails due to missing files, you can delete the appropriate package directory from `<your home directory\.platformio\packages` and Platformio will install it when you next compile.
    
 ![Hello World](hello-world.jpg)
 
