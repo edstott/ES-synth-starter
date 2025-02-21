@@ -144,7 +144,7 @@ Note that the rotation variable is only incremented or decremented when input A 
   > Normally you would connect incremental encoders directly to MCU pins so you can generate interrupts when the inputs change.
   > Unfortunately, there are not enough pins on the microcontroller module for this.
   > 
-  > To fix this problem, V2.1 of the synthesiser module contains an I<sup>2</sup>C GPIO expander device with interrrupt capability that can be used to read the knobs instead of the input matrix. You can try one if you like, but don't worry about optimising knob input on V1.1 hardware.
+  > To fix this problem, V2.1 of the synthesiser module contains an I<sup>2</sup>C GPIO expander device with interrrupt capability that can be used to read the knobs instead of the input matrix. As an extension, you can get a V2.1 module and follow the [guidance on using the GPIO expander](v2knobs).
 
 4.	The knob can be used to implement a simple volume control.
 	First, add limits to your knob decoder so the maximum rotation can be 8 and the minimum can be 0.
@@ -456,8 +456,8 @@ Only some of the features of the hardware are exposed by this library.
 
 	Check that your messages are still transmitted.
 
-  > [!TIP]
-  > **Initiation intervals of the communication tasks**
+	> [!TIP]
+	> **Initiation intervals of the communication tasks**
 	>
 	> The message send task waits for data in a queue, not a fixed time interval, so what is its initiation interval for analysis purposes?
 	> We need to look at how often items are being placed on the queue, which happens in `scanKeysTask()`.
@@ -533,8 +533,8 @@ Here we will adopt a more manual method because we need to ensure that we find t
 	Use preprocessor directives to make all the test setup reversible.
 	Then you will be able to easily switch between a normal build and a test build so you can remeasure execution times if you make any changes.
 
-  > [!TIP]
-  > **FreeRTOS Run Time Statistics**
+	> [!TIP]
+ 	> **FreeRTOS Run Time Statistics**
 	>
 	> [FreeRTOS can provide some information on execution time and utilisation](https://www.freertos.org/rtos-run-time-stats.html) without the need to isolate tasks, but some setting up is required.
 	> You need edit `FreeRTOSConfig.h` in the FreeRTOS library to define a macro that accesses the timer in your system.
