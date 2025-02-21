@@ -144,7 +144,7 @@ Note that the rotation variable is only incremented or decremented when input A 
   > Normally you would connect incremental encoders directly to MCU pins so you can generate interrupts when the inputs change.
   > Unfortunately, there are not enough pins on the microcontroller module for this.
   > 
-  > To fix this problem, V2.1 of the synthesiser module contains an I<sup>2</sup>C GPIO expander device with interrrupt capability that can be used to read the knobs instead of the input matrix. As an extension, you can get a V2.1 module and follow the [guidance on using the GPIO expander](v2knobs).
+  > To fix this problem, V2.1 of the synthesiser module contains an I<sup>2</sup>C GPIO expander device with interrrupt capability that can be used to read the knobs instead of the input matrix. As an extension, you can get a V2.1 module and follow the [guidance on using the GPIO expander](v2knobs.md).
 
 4.	The knob can be used to implement a simple volume control.
 	First, add limits to your knob decoder so the maximum rotation can be 8 and the minimum can be 0.
