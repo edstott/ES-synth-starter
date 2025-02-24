@@ -118,17 +118,12 @@ A stream buffer has a lower overhead than a queue and also has the limitation of
 However, it would not be suitable for use with DMA without modification because the DMA would need to access its internal storage directly.
 	
 ### Double buffering with DMA
-The STM32 DMA module is designed for use with double buffering.
-To adapt the code from above:
-1.	Make the sample buffers contiguous in memory:
-	
-	```c++
-	uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
-	uint8_t sampleBuffer1[] = sampleBuffer0 + SAMPLE_BUFFER_SIZE/2;
-	```
-2.	Set the DMA to copy samples from `sampleBuffer0` to the DAC at $f_s$.
-	The read pointer should be set to auto-increment.
-3.	Enable interrupts when the DMA read is complete and when it is half-complete.
-	The half-complete interrupt will be triggered when the DMA reaches the location of `sampleBuffer1`.
-	Write an ISR that will trigger the buffer swap and release the generator thread.
+The STM32 DMA module is designed to support this scenario: streaming samples from a double buffer in RAM to the DAC, but it will take some research to understand how to configure and use it. The main resources are the [STM32L4 Reference Manual](https://www.st.com/resource/en/reference_manual/rm0351-stm32l47xxx-stm32l48xxx-stm32l49xxx-and-stm32l4axxx-advanced-armbased-32bit-mcus-stmicroelectronics.pdf) (section 11) and the [STM32L4 HAL User Manual](https://www.st.com/resource/en/user_manual/um1884-description-of-stm32l4l4-hal-and-lowlayer-drivers-stmicroelectronics.pdf) (sections 16 and 22). You can also use STM32CubeMX to generate configuration code based on settings in a GUI.
+
+At a high level, the steps are:
+1. Configure the DAC to be triggered by a timer
+2. Configure the timer to have a period equal to $1/f_s$
+3. Configure the DMA for memory-to-peripheral copy, with DMA requests from the DAC
+4. Write an ISR that will trigger when the DMA transfer is complete. It will start the next transfer and set the semaphore to trigger the next batch of sample generation. Alternatively, you can run the DMA in cicrcular mode where it will run continuously and trigger interrupts when it is complete and half complete. Register the ISR as a callback with the HAL
+5. Start the first DMA transfer, specifying the addresses and size of the transfer (`HAL_DAC_Start_DMA()`)
 
