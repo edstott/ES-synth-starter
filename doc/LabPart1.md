@@ -332,6 +332,11 @@ Currently, the keys are read once every execution of the main loop.
 The main loop is also used to update the display, which is not ideal because it forces these tasks to have the same initiation interval.
 We will separate these two processes into different tasks by creating a thread to run the key scanning task.
 
+> [!IMPORTANT]
+> 
+> Your code will not run if you include STM32duino FreeRTOS as a library dependency but you don't start the scheduler.
+> Be sure to follow all the instructions below and always call `vTaskStartScheduler()` at the end of `setup()` if FreeRTOS is listed as a project dependency.
+
 1. Create a global struct that will store system state that is used in more than one thread:
 	```C++
 	struct {
@@ -397,12 +402,6 @@ We will separate these two processes into different tasks by creating a thread t
 	The stack needs to be large enough to store all the local variables of the functions called in the thread.
 
 	Remove the call to `scanKeysTask()` from the main loop.
-
-	
-> [!IMPORTANT]
-> 
-> Your code will not run if you include STM32duino FreeRTOS as a library dependency but you don't start the scheduler.
-> Initialise everything else before starting the scheduler with `vTaskStartScheduler()`.
 
 4.	The thread will need to execute at a constant rate, which will be the sample rate of our keyboard.
 	We can use the RTOS function `vTaskDelayUntil()` to do this — it blocks execution until a certain time has passed since the last time the function was completed.
