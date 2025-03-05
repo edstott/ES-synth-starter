@@ -1,3 +1,4 @@
+#include <stm32l4xx_hal.h>
 #include <stm32l4xx_hal_can.h>
 #include <stm32l4xx_hal_rcc.h>
 #include <stm32l4xx_hal_gpio.h>
